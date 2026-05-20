@@ -320,7 +320,7 @@ export function TemplatesManager() {
       <section className="bg-white border border-border rounded-lg p-4 space-y-3">
         {!hasSelection ? (
           <div className="text-sm text-gray-500 py-12 text-center">
-            从左侧选择一个模板，或点击「新建模板」开始。
+            从上方选择一个模板，或点击「新建模板」开始。
           </div>
         ) : (
           <>
@@ -372,7 +372,7 @@ export function TemplatesManager() {
 
             <textarea
               ref={textareaRef}
-              className="w-full min-h-[420px] border border-border rounded px-3 py-2 text-sm font-mono leading-relaxed"
+              className="w-full min-h-[240px] md:min-h-[420px] border border-border rounded px-3 py-2 text-sm font-mono leading-relaxed"
               value={body}
               onChange={(e) => {
                 setBody(e.target.value);

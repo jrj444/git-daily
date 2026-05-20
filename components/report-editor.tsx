@@ -172,32 +172,34 @@ export function ReportEditor() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-3 bg-white border border-border rounded-lg p-4">
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">日期</label>
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="border border-border rounded px-2 py-1 text-sm"
-          />
+      <div className="bg-white border border-border rounded-lg p-4 space-y-3">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="min-w-0">
+            <label className="block text-xs text-gray-500 mb-1">日期</label>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="border border-border rounded px-2 py-1 text-sm w-full"
+            />
+          </div>
+          <div className="min-w-0 flex-1 sm:flex-none">
+            <label className="block text-xs text-gray-500 mb-1">模板</label>
+            <select
+              value={templateId}
+              onChange={(e) => setTemplateId(e.target.value)}
+              className="border border-border rounded px-2 py-1 text-sm w-full sm:min-w-[140px]"
+            >
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                  {t.isDefault ? "（默认）" : ""}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">模板</label>
-          <select
-            value={templateId}
-            onChange={(e) => setTemplateId(e.target.value)}
-            className="border border-border rounded px-2 py-1 text-sm min-w-[140px]"
-          >
-            {templates.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-                {t.isDefault ? "（默认）" : ""}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={generate}
             disabled={loading}
@@ -275,8 +277,8 @@ export function ReportEditor() {
         <MDEditor
           value={content}
           onChange={(v) => setContent(v ?? "")}
-          height={520}
-          preview="live"
+          height={420}
+          preview="edit"
         />
       </div>
     </div>

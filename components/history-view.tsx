@@ -155,7 +155,7 @@ export function HistoryView() {
 
       <div className="bg-white border border-border rounded-lg">
         {!selectedDate ? (
-          <div className="p-6 text-sm text-gray-500">从左侧日历选择一天查看</div>
+          <div className="p-6 text-sm text-gray-500">从日历选择一天查看</div>
         ) : (
           <div className="flex flex-col">
             <div className="flex items-center gap-2 px-4 py-2 border-b border-border">
@@ -194,8 +194,8 @@ export function HistoryView() {
                 <MDEditor
                   value={content}
                   onChange={(v) => setContent(v ?? "")}
-                  height={500}
-                  preview="live"
+                  height={400}
+                  preview="edit"
                 />
               </div>
             ) : (

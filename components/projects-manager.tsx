@@ -180,7 +180,7 @@ export function ProjectsManager() {
     <div className="space-y-4">
       <section className="bg-white border border-border rounded-lg p-4 space-y-3">
         <h2 className="font-medium">添加项目</h2>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           <input
             className="flex-1 border border-border rounded px-2 py-1.5 text-sm"
             placeholder="项目 ID 或路径，如 12345 或 group/subgroup/repo"
@@ -190,21 +190,23 @@ export function ProjectsManager() {
               if (e.key === "Enter") void addProject();
             }}
           />
-          <button
-            onClick={addProject}
-            disabled={adding}
-            className="px-3 py-1.5 text-sm rounded bg-primary text-primary-foreground disabled:opacity-60"
-          >
-            {adding ? "添加中…" : "添加项目"}
-          </button>
-          <button
-            onClick={refreshProjects}
-            disabled={refreshing}
-            className="px-3 py-1.5 text-sm rounded border border-border hover:bg-muted disabled:opacity-60"
-            title="重新从 GitLab 拉取你有权限的全部项目"
-          >
-            {refreshing ? "拉取中…" : "重新拉取"}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={addProject}
+              disabled={adding}
+              className="px-3 py-1.5 text-sm rounded bg-primary text-primary-foreground disabled:opacity-60"
+            >
+              {adding ? "添加中…" : "添加项目"}
+            </button>
+            <button
+              onClick={refreshProjects}
+              disabled={refreshing}
+              className="px-3 py-1.5 text-sm rounded border border-border hover:bg-muted disabled:opacity-60"
+              title="重新从 GitLab 拉取你有权限的全部项目"
+            >
+              {refreshing ? "拉取中…" : "重新拉取"}
+            </button>
+          </div>
         </div>
         <p className="text-xs text-gray-500">
           提示：GitLab 项目页【Settings → General】顶部可看到 Project ID；或直接填写路径，如{" "}
@@ -213,7 +215,7 @@ export function ProjectsManager() {
       </section>
 
       <section className="bg-white border border-border rounded-lg p-4 space-y-3">
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 flex-wrap">
           <h2 className="font-medium">
             项目列表（{enabledCount}/{projects.length} 已启用）
           </h2>
@@ -226,7 +228,7 @@ export function ProjectsManager() {
             仅看已启用
           </label>
           <input
-            className="ml-auto border border-border rounded px-2 py-1 text-sm"
+            className="w-full sm:w-auto sm:ml-auto border border-border rounded px-2 py-1 text-sm"
             placeholder="搜索名称或 ID"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}

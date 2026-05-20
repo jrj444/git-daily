@@ -5,6 +5,10 @@ import dynamic from "next/dynamic";
 import dayjs from "dayjs";
 
 const MDEditor = dynamic(() => import("@uiw/react-md-editor"), { ssr: false });
+const MDPreview = dynamic(
+  () => import("@uiw/react-md-editor").then((mod) => ({ default: mod.default.Markdown })),
+  { ssr: false }
+);
 
 type Row = {
   user: {
@@ -42,7 +46,7 @@ export function TeamReports() {
 
   return (
     <div className="space-y-4">
-      <div className="bg-white border border-border rounded-lg p-4 flex items-center gap-4">
+      <div className="bg-white border border-border rounded-lg p-4 flex flex-wrap items-center gap-4">
         <div>
           <label className="block text-xs text-gray-500 mb-1">日期</label>
           <input
@@ -62,7 +66,7 @@ export function TeamReports() {
       <div className="grid md:grid-cols-[280px_1fr] gap-4">
         <div className="bg-white border border-border rounded-lg overflow-hidden">
           <div className="text-xs px-3 py-2 text-gray-500 bg-muted">成员</div>
-          <ul className="divide-y divide-border max-h-[600px] overflow-y-auto">
+          <ul className="divide-y divide-border max-h-[400px] md:max-h-[600px] overflow-y-auto">
             {rows.map((r) => (
               <li
                 key={r.user.id}
@@ -103,7 +107,7 @@ export function TeamReports() {
                 更新时间：
                 {new Date(activeRow.report.updatedAt).toLocaleString()}
               </div>
-              <MDEditor.Markdown source={activeRow.report.content} />
+              <MDPreview source={activeRow.report.content} />
             </div>
           )}
         </div>
