@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 250 250 250;
+  --foreground: 17 24 39;
+  --muted: 243 244 246;
+  --border: 229 231 235;
+  --primary: 37 99 235;
+  --primary-foreground: 255 255 255;
+}
+
+.dark {
+  --background: 17 24 39;
+  --foreground: 243 244 246;
+  --muted: 31 41 55;
+  --border: 55 65 81;
+  --primary: 96 165 250;
+  --primary-foreground: 17 24 39;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: rgb(var(--background));
+  color: rgb(var(--foreground));
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+/* Markdown editor tweaks */
+.w-md-editor {
+  --md-editor-bg: rgb(var(--background));
+}
