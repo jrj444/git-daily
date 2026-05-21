@@ -72,12 +72,21 @@ export const GET = withErrors(async (req: Request) => {
   const token = decrypt(user.gitlabToken);
   const opts = { baseUrl: user.gitlabBaseUrl, token };
 
+  type CommitItem = {
+    short_id: string;
+    title: string;
+    type: CommitType;
+    web_url: string | null;
+    authored_date: string;
+  };
+
   const totalBreakdown = emptyBreakdown();
   let total = 0;
   const byProject: {
     name: string;
     total: number;
     breakdown: Record<CommitType, number>;
+    commits: CommitItem[];
   }[] = [];
 
   await Promise.all(
@@ -97,6 +106,7 @@ export const GET = withErrors(async (req: Request) => {
         });
 
         const projBreakdown = emptyBreakdown();
+        const projCommits: CommitItem[] = [];
         let projTotal = 0;
 
         for (const c of filtered) {
@@ -106,13 +116,24 @@ export const GET = withErrors(async (req: Request) => {
           totalBreakdown[cat]++;
           projTotal++;
           total++;
+          projCommits.push({
+            short_id: c.short_id,
+            title: parsed.subject || c.title || c.message || "",
+            type: cat,
+            web_url: c.web_url ?? null,
+            authored_date: c.authored_date,
+          });
         }
 
         if (projTotal > 0) {
+          projCommits.sort((a, b) =>
+            b.authored_date.localeCompare(a.authored_date)
+          );
           byProject.push({
             name: p.alias || p.nameWithNamespace,
             total: projTotal,
             breakdown: projBreakdown,
+            commits: projCommits,
           });
         }
       } catch {

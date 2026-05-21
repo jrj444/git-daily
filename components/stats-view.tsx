@@ -27,7 +27,19 @@ const TYPE_META: Record<
 const TYPE_KEYS = Object.keys(TYPE_META);
 
 type Breakdown = Record<string, number>;
-type ProjectStat = { name: string; total: number; breakdown: Breakdown };
+type CommitItem = {
+  short_id: string;
+  title: string;
+  type: string;
+  web_url: string | null;
+  authored_date: string;
+};
+type ProjectStat = {
+  name: string;
+  total: number;
+  breakdown: Breakdown;
+  commits: CommitItem[];
+};
 type StatsData = { total: number; breakdown: Breakdown; byProject: ProjectStat[] };
 
 /* ---------- helpers ---------- */
@@ -46,7 +58,18 @@ export function StatsView() {
   const [endDate, setEndDate] = useState(dayjs().format("YYYY-MM-DD"));
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<StatsData | null>(null);
-  const [expandedProject, setExpandedProject] = useState<string | null>(null);
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(
+    new Set()
+  );
+
+  function toggleProject(name: string) {
+    setExpandedProjects((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }
 
   async function query() {
     if (!startDate || !endDate) {
@@ -104,6 +127,41 @@ export function StatsView() {
         </button>
       </div>
 
+      {!data && !loading && (
+        <div className="bg-card border border-border rounded-lg p-10 text-center">
+          <div className="mx-auto w-14 h-14 rounded-full bg-primary/10 grid place-items-center mb-4">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="w-7 h-7 text-primary"
+              aria-hidden
+            >
+              <line x1="18" y1="20" x2="18" y2="10" />
+              <line x1="12" y1="20" x2="12" y2="4" />
+              <line x1="6" y1="20" x2="6" y2="14" />
+            </svg>
+          </div>
+          <h3 className="text-base font-medium mb-1">尚未查询数据</h3>
+          <p className="text-sm text-muted-foreground">
+            选择上方的起止日期后，点击「查询」查看提交类型统计。
+          </p>
+          <p className="text-xs text-muted-foreground/80 mt-2">
+            默认范围为本周周一至今天。
+          </p>
+        </div>
+      )}
+
+      {loading && !data && (
+        <div className="bg-card border border-border rounded-lg p-10 text-center text-sm text-muted-foreground">
+          查询中…
+        </div>
+      )}
+
       {data && (
         <>
           {/* Summary cards */}
@@ -157,20 +215,34 @@ export function StatsView() {
           </div>
 
           {/* Per-project breakdown */}
-          {data.byProject.length > 0 && (
+          {data.byProject.length > 0 && (() => {
+            const allOpen =
+              data.byProject.length > 0 &&
+              expandedProjects.size === data.byProject.length;
+            return (
             <div className="bg-card border border-border rounded-lg p-4">
-              <h2 className="font-medium mb-3">
-                项目明细（{data.byProject.length} 个项目）
-              </h2>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-medium">
+                  项目明细（{data.byProject.length} 个项目）
+                </h2>
+                <button
+                  onClick={() =>
+                    setExpandedProjects(
+                      allOpen
+                        ? new Set()
+                        : new Set(data.byProject.map((p) => p.name))
+                    )
+                  }
+                  className="text-xs text-primary hover:underline"
+                >
+                  {allOpen ? "全部收起" : "全部展开"}
+                </button>
+              </div>
               <div className="space-y-1">
                 {data.byProject.map((proj) => (
                   <div key={proj.name} className="border border-border rounded">
                     <button
-                      onClick={() =>
-                        setExpandedProject(
-                          expandedProject === proj.name ? null : proj.name
-                        )
-                      }
+                      onClick={() => toggleProject(proj.name)}
                       className="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-muted"
                     >
                       <span className="font-medium flex-1 text-left truncate">
@@ -180,10 +252,10 @@ export function StatsView() {
                         共 {proj.total} 次提交
                       </span>
                       <span className="text-xs">
-                        {expandedProject === proj.name ? "▲" : "▼"}
+                        {expandedProjects.has(proj.name) ? "▲" : "▼"}
                       </span>
                     </button>
-                    {expandedProject === proj.name && (
+                    {expandedProjects.has(proj.name) && (
                       <div className="px-3 pb-2 space-y-1">
                         {TYPE_KEYS.map((key) => {
                           const count = proj.breakdown[key] || 0;
@@ -218,13 +290,57 @@ export function StatsView() {
                             </div>
                           );
                         })}
+                        <div className="mt-3 border-t border-border pt-2">
+                          <div className="text-xs text-muted-foreground mb-1.5">
+                            提交记录（{proj.commits.length}）
+                          </div>
+                          <ul className="space-y-1 max-h-[320px] overflow-y-auto pr-1">
+                            {proj.commits.map((c) => {
+                              const meta = TYPE_META[c.type] || TYPE_META.other;
+                              return (
+                                <li
+                                  key={c.short_id}
+                                  className="flex items-start gap-2 text-xs"
+                                >
+                                  <span
+                                    className={cn(
+                                      "shrink-0 w-20 text-center px-1.5 py-0.5 rounded font-medium text-white",
+                                      meta.bg
+                                    )}
+                                  >
+                                    {meta.label}
+                                  </span>
+                                  <span className="flex-1 break-words">
+                                    {c.title}
+                                  </span>
+                                  <span className="hidden sm:inline shrink-0 text-muted-foreground font-mono">
+                                    {dayjs(c.authored_date).format(
+                                      "MM-DD HH:mm"
+                                    )}
+                                  </span>
+                                  {c.web_url && (
+                                    <a
+                                      href={c.web_url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="hidden sm:inline shrink-0 font-mono text-primary hover:underline"
+                                    >
+                                      {c.short_id.slice(0, 7)}
+                                    </a>
+                                  )}
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
                       </div>
                     )}
                   </div>
                 ))}
               </div>
             </div>
-          )}
+            );
+          })()}
         </>
       )}
 
