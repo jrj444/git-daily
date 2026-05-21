@@ -15,7 +15,7 @@ export default async function ProjectsPage() {
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-6 space-y-4">
         <div>
           <h1 className="text-xl font-semibold">项目管理</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             管理你的 GitLab 项目列表，启用日报抓取的项目。无需的项目可以删除以保持列表整洁。
           </p>
         </div>

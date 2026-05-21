@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import dynamic from "next/dynamic";
 import dayjs from "dayjs";
 import toast from "react-hot-toast";
+import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 
 const MDEditor = dynamic(() => import("@uiw/react-md-editor"), { ssr: false });
@@ -31,6 +32,14 @@ export function ReportEditor() {
     []
   );
   const [hasSaved, setHasSaved] = useState(false);
+
+  const { resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  const colorMode: "light" | "dark" =
+    mounted && resolvedTheme === "dark" ? "dark" : "light";
 
   const enabledProjects = useMemo(
     () => projects.filter((p) => p.enabled),
@@ -172,10 +181,10 @@ export function ReportEditor() {
 
   return (
     <div className="space-y-4">
-      <div className="bg-white border border-border rounded-lg p-4 space-y-3">
+      <div className="bg-card border border-border rounded-lg p-4 space-y-3">
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-0">
-            <label className="block text-xs text-gray-500 mb-1">日期</label>
+            <label className="block text-xs text-muted-foreground mb-1">日期</label>
             <input
               type="date"
               value={date}
@@ -184,7 +193,7 @@ export function ReportEditor() {
             />
           </div>
           <div className="min-w-0 flex-1 sm:flex-none">
-            <label className="block text-xs text-gray-500 mb-1">模板</label>
+            <label className="block text-xs text-muted-foreground mb-1">模板</label>
             <select
               value={templateId}
               onChange={(e) => setTemplateId(e.target.value)}
@@ -232,8 +241,8 @@ export function ReportEditor() {
       </div>
 
       {enabledProjects.length > 0 && (
-        <div className="bg-white border border-border rounded-lg p-3">
-          <div className="text-xs text-gray-500 mb-2">
+        <div className="bg-card border border-border rounded-lg p-3">
+          <div className="text-xs text-muted-foreground mb-2">
             参与生成的项目（共 {enabledProjects.length} 个，
             <a className="text-primary underline" href="/settings">
               在设置中开启更多
@@ -249,7 +258,7 @@ export function ReportEditor() {
                   "px-2 py-1 text-xs rounded border",
                   selectedProjects.includes(p.id)
                     ? "border-primary bg-primary/10 text-primary"
-                    : "border-border text-gray-600 hover:bg-muted"
+                    : "border-border text-muted-foreground hover:bg-muted"
                 )}
               >
                 {p.alias || p.nameWithNamespace}
@@ -273,7 +282,7 @@ export function ReportEditor() {
         </div>
       )}
 
-      <div data-color-mode="light" className="bg-white rounded-lg overflow-hidden border border-border">
+      <div data-color-mode={colorMode} className="bg-card rounded-lg overflow-hidden border border-border">
         <MDEditor
           value={content}
           onChange={(v) => setContent(v ?? "")}

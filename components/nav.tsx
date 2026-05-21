@@ -5,6 +5,7 @@ import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 type Props = {
   user: { username: string; role: "MEMBER" | "ADMIN" };
@@ -59,7 +60,7 @@ export function Nav({ user }: Props) {
   }
 
   return (
-    <header className="border-b border-border bg-white relative" ref={menuRef}>
+    <header className="border-b border-border bg-card relative" ref={menuRef}>
       <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-4 md:gap-6">
         <Link href="/" className="font-semibold shrink-0">
           Pingyun Report
@@ -95,6 +96,7 @@ export function Nav({ user }: Props) {
 
         {/* Desktop user */}
         <div className="ml-auto hidden md:flex items-center gap-3 text-sm">
+          <ThemeToggle />
           <span className="text-muted-foreground">{user.username}</span>
           <button
             onClick={() => signOut({ callbackUrl: "/login" })}
@@ -139,7 +141,7 @@ export function Nav({ user }: Props) {
 
       {/* Mobile dropdown menu */}
       {open && (
-        <div className="md:hidden absolute inset-x-0 top-[57px] z-50 bg-white border-b border-border shadow-lg">
+        <div className="md:hidden absolute inset-x-0 top-[57px] z-50 bg-card border-b border-border shadow-lg">
           <nav className="flex flex-col p-2 gap-0.5">
             {allItems.map((it) => (
               <Link
@@ -156,12 +158,15 @@ export function Nav({ user }: Props) {
           </nav>
           <div className="border-t border-border px-4 py-3 flex items-center justify-between text-sm">
             <span className="text-muted-foreground">{user.username}</span>
-            <button
-              onClick={() => signOut({ callbackUrl: "/login" })}
-              className="px-3 py-1.5 rounded hover:bg-muted"
-            >
-              退出
-            </button>
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <button
+                onClick={() => signOut({ callbackUrl: "/login" })}
+                className="px-3 py-1.5 rounded hover:bg-muted"
+              >
+                退出
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -275,7 +275,7 @@ export function TemplatesManager() {
 
   return (
     <div className="grid lg:grid-cols-[260px_1fr] gap-4">
-      <aside className="bg-white border border-border rounded-lg p-3 space-y-2 h-fit">
+      <aside className="bg-card border border-border rounded-lg p-3 space-y-2 h-fit">
         <button
           onClick={newTemplate}
           className="w-full px-3 py-1.5 text-sm rounded bg-primary text-primary-foreground"
@@ -284,9 +284,9 @@ export function TemplatesManager() {
         </button>
         <div className="space-y-1 max-h-[480px] overflow-y-auto">
           {loading ? (
-            <div className="text-xs text-gray-500 py-2 text-center">加载中…</div>
+            <div className="text-xs text-muted-foreground py-2 text-center">加载中…</div>
           ) : templates.length === 0 ? (
-            <div className="text-xs text-gray-500 py-2 text-center">暂无模板</div>
+            <div className="text-xs text-muted-foreground py-2 text-center">暂无模板</div>
           ) : (
             templates.map((t) => (
               <button
@@ -309,7 +309,7 @@ export function TemplatesManager() {
           {selectedId === NEW_ID && (
             <div className="px-2 py-1.5 rounded text-sm bg-muted font-medium flex items-center gap-2">
               <span className="flex-1 truncate">{name || "（未命名）"}</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
                 未保存
               </span>
             </div>
@@ -317,9 +317,9 @@ export function TemplatesManager() {
         </div>
       </aside>
 
-      <section className="bg-white border border-border rounded-lg p-4 space-y-3">
+      <section className="bg-card border border-border rounded-lg p-4 space-y-3">
         {!hasSelection ? (
-          <div className="text-sm text-gray-500 py-12 text-center">
+          <div className="text-sm text-muted-foreground py-12 text-center">
             从上方选择一个模板，或点击「新建模板」开始。
           </div>
         ) : (
@@ -335,7 +335,7 @@ export function TemplatesManager() {
                 }}
                 maxLength={50}
               />
-              <label className="text-xs text-gray-600 flex items-center gap-1">
+              <label className="text-xs text-muted-foreground flex items-center gap-1">
                 <input
                   type="checkbox"
                   checked={isDefault}
@@ -363,7 +363,7 @@ export function TemplatesManager() {
               {selectedId !== NEW_ID && (
                 <button
                   onClick={del}
-                  className="px-3 py-1.5 text-sm rounded border border-red-200 text-red-600 hover:bg-red-50"
+                  className="px-3 py-1.5 text-sm rounded border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40"
                 >
                   删除
                 </button>
@@ -418,7 +418,7 @@ export function TemplatesManager() {
               <div className="space-y-4">
                 {PLACEHOLDER_GROUPS.map((g) => (
                   <div key={g.title}>
-                    <div className="text-xs font-medium text-gray-700 mb-1">
+                    <div className="text-xs font-medium text-foreground/80 mb-1">
                       {g.title}
                     </div>
                     <ul className="space-y-1">
@@ -434,7 +434,7 @@ export function TemplatesManager() {
                           >
                             {it.token}
                           </button>
-                          <span className="flex-1 text-gray-600 pt-0.5">
+                          <span className="flex-1 text-muted-foreground pt-0.5">
                             {it.desc}
                           </span>
                         </li>
@@ -443,7 +443,7 @@ export function TemplatesManager() {
                   </div>
                 ))}
                 <div>
-                  <div className="text-xs font-medium text-gray-700 mb-1">
+                  <div className="text-xs font-medium text-foreground/80 mb-1">
                     内置默认模板
                   </div>
                   <pre className="text-xs font-mono p-2 bg-muted rounded whitespace-pre overflow-x-auto">
@@ -468,7 +468,7 @@ export function TemplatesManager() {
             ) : (
               <div className="space-y-2">
                 {previewError && (
-                  <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1">
+                  <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1 dark:bg-red-950/40 dark:border-red-900 dark:text-red-400">
                     {previewError}
                   </div>
                 )}
@@ -477,7 +477,7 @@ export function TemplatesManager() {
                     {previewContent}
                   </pre>
                 ) : (
-                  <div className="text-xs text-gray-500 py-6 text-center">
+                  <div className="text-xs text-muted-foreground py-6 text-center">
                     点击「预览」按钮使用示例数据渲染当前模板。
                   </div>
                 )}

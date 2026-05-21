@@ -6,6 +6,7 @@
 - [validate-token/route.ts](file://app/api/gitlab/validate-token/route.ts)
 - [projects/route.ts](file://app/api/gitlab/projects/route.ts)
 - [generate/route.ts](file://app/api/reports/generate/route.ts)
+- [stats-commits/route.ts](file://app/api/stats/commits/route.ts)
 - [crypto.ts](file://lib/crypto.ts)
 - [session.ts](file://lib/session.ts)
 - [auth.ts](file://lib/auth.ts)
@@ -15,27 +16,38 @@
 - [report.ts](file://lib/report.ts)
 </cite>
 
+## Update Summary
+**Changes Made**
+- Enhanced commit filtering pipeline with merge commit detection and conventional commit parsing
+- Improved noise regex filtering with case-insensitive pattern matching
+- Added parallel project querying capabilities using Promise.all
+- Expanded statistics reporting with commit categorization and breakdown analysis
+- Strengthened conventional commit message parsing with structured type extraction
+
 ## Table of Contents
 1. [Introduction](#introduction)
 2. [Project Structure](#project-structure)
 3. [Core Components](#core-components)
 4. [Architecture Overview](#architecture-overview)
 5. [Detailed Component Analysis](#detailed-component-analysis)
-6. [Dependency Analysis](#dependency-analysis)
-7. [Performance Considerations](#performance-considerations)
-8. [Troubleshooting Guide](#troubleshooting-guide)
-9. [Conclusion](#conclusion)
+6. [Enhanced Filtering Pipeline](#enhanced-filtering-pipeline)
+7. [Parallel Project Querying](#parallel-project-querying)
+8. [Dependency Analysis](#dependency-analysis)
+9. [Performance Considerations](#performance-considerations)
+10. [Troubleshooting Guide](#troubleshooting-guide)
+11. [Conclusion](#conclusion)
 
 ## Introduction
-This document explains the GitLab integration system implemented in the backend and frontend of the application. It covers the server-side GitLab API client, authentication and token management, project configuration, commit fetching workflow, filtering and rendering pipeline, and error handling strategies. It also provides practical guidance on performance and caching considerations for scalable usage across multiple projects.
+This document explains the GitLab integration system implemented in the backend and frontend of the application. It covers the server-side GitLab API client, authentication and token management, project configuration, commit fetching workflow, enhanced filtering and rendering pipeline, and error handling strategies. The system now features improved commit filtering with merge detection, conventional commit parsing, noise regex filtering, and parallel project querying capabilities for enhanced performance and accuracy.
 
 ## Project Structure
-The GitLab integration spans several modules:
-- Server-side API routes under app/api handle user sessions, token validation, project configuration, and report generation.
+The GitLab integration spans several modules with enhanced capabilities:
+- Server-side API routes under app/api handle user sessions, token validation, project configuration, report generation, and statistics collection.
 - A dedicated GitLab client library encapsulates API calls and pagination.
 - Encryption utilities manage secure storage of tokens.
 - Prisma schema defines user, project, and report entities.
 - Frontend settings form coordinates user actions and displays configuration state.
+- Enhanced report processing pipeline with conventional commit parsing and merge detection.
 
 ```mermaid
 graph TB
@@ -46,6 +58,7 @@ subgraph "Server Routes"
 VT["Validate Token<br/>app/api/gitlab/validate-token/route.ts"]
 PJ["Project Config<br/>app/api/gitlab/projects/route.ts"]
 GR["Generate Report<br/>app/api/reports/generate/route.ts"]
+SC["Stats Commits<br/>app/api/stats/commits/route.ts"]
 end
 subgraph "Libraries"
 GL["GitLab Client<br/>lib/gitlab.ts"]
@@ -66,57 +79,69 @@ GR --> GL
 GR --> CR
 GR --> PR
 GR --> RP
+SC --> GL
+SC --> CR
+SC --> PR
+SC --> RP
 SE --> VT
 SE --> PJ
 SE --> GR
+SE --> SC
 ```
 
 **Diagram sources**
-- [settings-form.tsx:1-368](file://components/settings-form.tsx#L1-L368)
-- [validate-token/route.ts:1-81](file://app/api/gitlab/validate-token/route.ts#L1-L81)
-- [projects/route.ts:1-42](file://app/api/gitlab/projects/route.ts#L1-L42)
+- [settings-form.tsx:1-222](file://components/settings-form.tsx#L1-L222)
+- [validate-token/route.ts:1-88](file://app/api/gitlab/validate-token/route.ts#L1-L88)
+- [projects/route.ts:1-163](file://app/api/gitlab/projects/route.ts#L1-L163)
 - [generate/route.ts:1-133](file://app/api/reports/generate/route.ts#L1-L133)
-- [gitlab.ts:1-149](file://lib/gitlab.ts#L1-L149)
+- [stats-commits/route.ts:1-129](file://app/api/stats/commits/route.ts#L1-L129)
+- [gitlab.ts:1-172](file://lib/gitlab.ts#L1-L172)
 - [crypto.ts:1-46](file://lib/crypto.ts#L1-L46)
 - [session.ts:1-56](file://lib/session.ts#L1-L56)
 - [auth.ts:1-77](file://lib/auth.ts#L1-L77)
 - [report.ts:1-159](file://lib/report.ts#L1-L159)
-- [schema.prisma:1-80](file://prisma/schema.prisma#L1-L80)
+- [schema.prisma:1-81](file://prisma/schema.prisma#L1-L81)
 
 **Section sources**
-- [settings-form.tsx:1-368](file://components/settings-form.tsx#L1-L368)
-- [validate-token/route.ts:1-81](file://app/api/gitlab/validate-token/route.ts#L1-L81)
-- [projects/route.ts:1-42](file://app/api/gitlab/projects/route.ts#L1-L42)
+- [settings-form.tsx:1-222](file://components/settings-form.tsx#L1-L222)
+- [validate-token/route.ts:1-88](file://app/api/gitlab/validate-token/route.ts#L1-L88)
+- [projects/route.ts:1-163](file://app/api/gitlab/projects/route.ts#L1-L163)
 - [generate/route.ts:1-133](file://app/api/reports/generate/route.ts#L1-L133)
-- [gitlab.ts:1-149](file://lib/gitlab.ts#L1-L149)
+- [stats-commits/route.ts:1-129](file://app/api/stats/commits/route.ts#L1-L129)
+- [gitlab.ts:1-172](file://lib/gitlab.ts#L1-L172)
 - [crypto.ts:1-46](file://lib/crypto.ts#L1-L46)
 - [session.ts:1-56](file://lib/session.ts#L1-L56)
 - [auth.ts:1-77](file://lib/auth.ts#L1-L77)
 - [report.ts:1-159](file://lib/report.ts#L1-L159)
-- [schema.prisma:1-80](file://prisma/schema.prisma#L1-L80)
+- [schema.prisma:1-81](file://prisma/schema.prisma#L1-L81)
 
 ## Core Components
-- GitLab API client: Provides typed models, a generic fetch wrapper, and functions to validate tokens, enumerate projects, and list commits with pagination and query parameters.
-- Token encryption/decryption: AES-256-GCM via environment-backed key for secure storage of GitLab personal access tokens.
-- Session and authentication: NextAuth-based JWT session with server-side route guards and error normalization.
-- Project configuration: CRUD-like operations to enable/disable projects and set default branches per user.
-- Report pipeline: Date-range commit retrieval, filtering, deduplication, conventional commit parsing, and template rendering.
+- **GitLab API client**: Provides typed models, a generic fetch wrapper, and functions to validate tokens, enumerate projects, and list commits with pagination and query parameters.
+- **Enhanced filtering pipeline**: Advanced commit filtering with merge commit detection, conventional commit parsing, noise regex filtering, and deduplication.
+- **Token encryption/decryption**: AES-256-GCM via environment-backed key for secure storage of GitLab personal access tokens.
+- **Session and authentication**: NextAuth-based JWT session with server-side route guards and error normalization.
+- **Project configuration**: CRUD-like operations to enable/disable projects and set default branches per user.
+- **Statistics reporting**: Date-range commit retrieval with categorization and breakdown analysis.
+- **Parallel processing**: Concurrent project querying using Promise.all for improved performance.
 
 **Section sources**
-- [gitlab.ts:1-149](file://lib/gitlab.ts#L1-L149)
+- [gitlab.ts:1-172](file://lib/gitlab.ts#L1-L172)
 - [crypto.ts:1-46](file://lib/crypto.ts#L1-L46)
 - [session.ts:1-56](file://lib/session.ts#L1-L56)
 - [auth.ts:1-77](file://lib/auth.ts#L1-L77)
-- [projects/route.ts:1-42](file://app/api/gitlab/projects/route.ts#L1-L42)
+- [projects/route.ts:1-163](file://app/api/gitlab/projects/route.ts#L1-L163)
 - [report.ts:1-159](file://lib/report.ts#L1-L159)
+- [stats-commits/route.ts:1-129](file://app/api/stats/commits/route.ts#L1-L129)
 
 ## Architecture Overview
-The integration follows a strict server-side-first model:
+The integration follows a strict server-side-first model with enhanced capabilities:
 - Frontend triggers actions via API routes.
 - Routes enforce authentication and authorization.
 - Routes call the GitLab client to fetch data.
 - Tokens are decrypted server-side for API calls and re-encrypted for persistence.
-- Results are persisted or transformed into reports.
+- Enhanced filtering pipeline processes commits with merge detection and conventional parsing.
+- Parallel project querying improves performance for multiple project operations.
+- Results are persisted or transformed into reports and statistics.
 
 ```mermaid
 sequenceDiagram
@@ -137,11 +162,11 @@ VT-->>FE : "{ok, user} (+warning if project sync failed)"
 ```
 
 **Diagram sources**
-- [settings-form.tsx:61-88](file://components/settings-form.tsx#L61-L88)
-- [validate-token/route.ts:13-80](file://app/api/gitlab/validate-token/route.ts#L13-L80)
-- [gitlab.ts:82-111](file://lib/gitlab.ts#L82-L111)
+- [settings-form.tsx:54-81](file://components/settings-form.tsx#L54-L81)
+- [validate-token/route.ts:13-87](file://app/api/gitlab/validate-token/route.ts#L13-L87)
+- [gitlab.ts:95-121](file://lib/gitlab.ts#L95-L121)
 - [crypto.ts:28-38](file://lib/crypto.ts#L28-L38)
-- [schema.prisma:16-49](file://prisma/schema.prisma#L16-L49)
+- [schema.prisma:16-33](file://prisma/schema.prisma#L16-L33)
 
 ## Detailed Component Analysis
 
@@ -155,6 +180,7 @@ Key behaviors:
 - Pagination is handled via the x-next-page header with a safety cap.
 - Query parameters are sanitized to exclude undefined/null/empty values.
 - Timeout aborts prevent hanging requests.
+- Enhanced project listing with membership filtering and simple mode.
 
 ```mermaid
 flowchart TD
@@ -170,10 +196,10 @@ HasNext -- "Yes" --> Page["Set page=next (cap at 20)"] --> Fetch
 ```
 
 **Diagram sources**
-- [gitlab.ts:91-111](file://lib/gitlab.ts#L91-L111)
+- [gitlab.ts:95-121](file://lib/gitlab.ts#L95-L121)
 
 **Section sources**
-- [gitlab.ts:1-149](file://lib/gitlab.ts#L1-L149)
+- [gitlab.ts:1-172](file://lib/gitlab.ts#L1-L172)
 
 ### Authentication and Token Management
 - Authentication: NextAuth with JWT strategy and credentials provider.
@@ -196,22 +222,23 @@ VT->>PR : "update user fields (baseUrl, userId, email, optional token)"
 ```
 
 **Diagram sources**
-- [validate-token/route.ts:13-39](file://app/api/gitlab/validate-token/route.ts#L13-L39)
+- [validate-token/route.ts:13-45](file://app/api/gitlab/validate-token/route.ts#L13-L45)
 - [crypto.ts:28-38](file://lib/crypto.ts#L28-L38)
-- [gitlab.ts:82-89](file://lib/gitlab.ts#L82-L89)
+- [gitlab.ts:91-93](file://lib/gitlab.ts#L91-L93)
 
 **Section sources**
 - [auth.ts:30-77](file://lib/auth.ts#L30-L77)
 - [session.ts:11-56](file://lib/session.ts#L11-L56)
-- [validate-token/route.ts:1-81](file://app/api/gitlab/validate-token/route.ts#L1-L81)
+- [validate-token/route.ts:1-88](file://app/api/gitlab/validate-token/route.ts#L1-L88)
 - [crypto.ts:1-46](file://lib/crypto.ts#L1-L46)
 
 ### Commit Fetching Workflow
 - Date range: The report route computes since/until timestamps for a given date.
 - Project enumeration: Enabled projects are selected per user, optionally filtered by provided IDs.
 - Branch filtering: Uses per-project defaultBranch if set; otherwise falls back to API defaults.
-- Parallelization: Commits are fetched concurrently across projects.
+- Parallelization: Commits are fetched concurrently across projects using Promise.all.
 - Error handling: Individual project failures are captured and reported separately.
+- Enhanced filtering: Merge commits are detected and filtered out by default.
 
 ```mermaid
 sequenceDiagram
@@ -223,14 +250,14 @@ GR->>PR : "find enabled projects (optionally filtered)"
 GR->>CR : "decrypt(user.gitlabToken)"
 GR->>GL : "listCommits(projectId, since, until, branch?)"
 GL-->>GR : "GitLabCommit[]"
-GR-->>GR : "filter/dedupe/parse conventional"
-GR-->>GR : "render template"
+GR->>GR : "filter/dedupe/parse conventional"
+GR->>GR : "render template"
 GR-->>Client : "{content, errors}"
 ```
 
 **Diagram sources**
 - [generate/route.ts:23-133](file://app/api/reports/generate/route.ts#L23-L133)
-- [gitlab.ts:120-148](file://lib/gitlab.ts#L120-L148)
+- [gitlab.ts:143-171](file://lib/gitlab.ts#L143-L171)
 - [report.ts:52-105](file://lib/report.ts#L52-L105)
 
 **Section sources**
@@ -240,6 +267,8 @@ GR-->>Client : "{content, errors}"
 ### Project Configuration System
 - Listing projects: Returns user-scoped, enabled-first ordered list.
 - Updating projects: Toggle enabled flag and set defaultBranch per project.
+- Adding projects: Supports both numeric IDs and URL-encoded paths with automatic upsert.
+- Refreshing projects: Bulk refresh with membership filtering and simple mode.
 - Frontend: SettingsForm displays projects, supports filtering, toggling, and branch editing.
 
 ```mermaid
@@ -249,16 +278,23 @@ Q --> R["Return JSON"]
 U["PATCH /api/gitlab/projects"] --> F["Find project by id and userId"]
 F --> Exists{"Found?"}
 Exists -- "No" --> E404["Return 404"]
-Exists -- "Yes" --> Save["Update enabled/defaultBranch"]
+Exists -- "Yes" --> Save["Update enabled/defaultBranch/alias"]
 Save --> OK["Return updated project"]
+A["POST /api/gitlab/projects"] --> Check{"refreshAll?"}
+Check -- "Yes" --> Bulk["Bulk refresh with listProjects"]
+Check -- "No" --> Single["Single project lookup/getProject"]
+Bulk --> Upsert["Upsert projects"]
+Single --> Upsert
+Upsert --> Return["Return created/updated project"]
 ```
 
 **Diagram sources**
-- [projects/route.ts:6-42](file://app/api/gitlab/projects/route.ts#L6-L42)
+- [projects/route.ts:8-46](file://app/api/gitlab/projects/route.ts#L8-L46)
+- [projects/route.ts:55-144](file://app/api/gitlab/projects/route.ts#L55-L144)
 
 **Section sources**
-- [projects/route.ts:1-42](file://app/api/gitlab/projects/route.ts#L1-L42)
-- [settings-form.tsx:187-314](file://components/settings-form.tsx#L187-L314)
+- [projects/route.ts:1-163](file://app/api/gitlab/projects/route.ts#L1-L163)
+- [settings-form.tsx:190-222](file://components/settings-form.tsx#L190-L222)
 
 ### Token Encryption and Decryption
 - Algorithm: AES-256-GCM with random 12-byte IV and 16-byte auth tag.
@@ -283,36 +319,98 @@ DEC --> PT["Return plaintext token"]
 
 **Section sources**
 - [crypto.ts:1-46](file://lib/crypto.ts#L1-L46)
-- [validate-token/route.ts:37-38](file://app/api/gitlab/validate-token/route.ts#L37-L38)
-- [settings-form.tsx:210-225](file://components/settings-form.tsx#L210-L225)
+- [validate-token/route.ts:26-45](file://app/api/gitlab/validate-token/route.ts#L26-L45)
+- [settings-form.tsx:125-138](file://components/settings-form.tsx#L125-L138)
 
-### Filtering and Noise Regex
-- Merge commits: Optionally dropped when generating reports.
-- Author email: Optional filter to restrict commits to a specific author email.
-- Noise regex: Case-insensitive regex applied to commit titles; invalid patterns are ignored.
-- Conventional commits: First line parsed into type/scope/subject for grouping and deduplication.
+## Enhanced Filtering Pipeline
+
+### Conventional Commit Parsing
+The system now includes sophisticated conventional commit parsing that extracts structured information from commit messages:
+
+- **Pattern matching**: Uses regex `/^(\w+)(?:\(([^)]+)\))?:\s*(.+)$/` to parse type, scope, and subject.
+- **Structured extraction**: Returns type, scope, and subject components for grouping and deduplication.
+- **Fallback handling**: Falls back to title if conventional format is not detected.
+
+### Merge Commit Detection
+Enhanced merge commit identification:
+- **Parent count analysis**: Detects merge commits by checking if parent_ids array has more than one entry.
+- **Automatic filtering**: Merge commits are filtered out by default in report generation.
+- **Configurable behavior**: Can be disabled via dropMerges option.
+
+### Noise Regex Filtering
+Advanced noise filtering capabilities:
+- **Case-insensitive matching**: Regex patterns are applied with the 'i' flag.
+- **Invalid pattern handling**: Invalid regex patterns are caught and ignored gracefully.
+- **Title-only filtering**: Applies noise filtering to commit titles only.
+
+### Deduplication Strategy
+Intelligent deduplication based on conventional commit structure:
+- **Multi-field keys**: Creates unique keys from type|scope|lowercase subject.
+- **First-occurrence preservation**: Maintains the first occurrence of duplicate commits.
+- **Case-insensitive comparison**: Ensures consistent deduplication regardless of case.
 
 ```mermaid
 flowchart TD
-In["Input commits"] --> DropMerges{"dropMerges?"}
-DropMerges -- "Yes" --> FilterMerges["Remove parent_ids.length > 1"]
-DropMerges -- "No" --> KeepMerges["Keep merges"]
-FilterMerges --> ByAuthor{"authorEmail set?"}
-KeepMerges --> ByAuthor
-ByAuthor -- "Yes" --> FilterAuthor["Match author_email"]
-ByAuthor -- "No" --> NoiseCheck["Proceed"]
-FilterAuthor --> NoiseCheck
+In["Input commits"] --> Parse["Parse conventional commits"]
+Parse --> MergeCheck{"isMergeCommit?"}
+MergeCheck -- "Yes" --> DropMerge["Drop merge commit"]
+MergeCheck -- "No" --> EmailFilter{"authorEmail set?"}
+DropMerge --> Next["Continue"]
+EmailFilter -- "Yes" --> EmailCheck["Match author_email"]
+EmailFilter -- "No" --> NoiseCheck["Proceed to noise filter"]
+EmailCheck --> NoiseCheck
 NoiseCheck --> NoiseRegex{"noiseRegex set?"}
 NoiseRegex -- "Yes" --> ApplyRegex["Test title against regex (i)"]
-NoiseRegex -- "No" --> Final["Return filtered commits"]
-ApplyRegex --> Final
+NoiseRegex -- "No" --> Dedupe["Deduplicate by type/scope/subject"]
+ApplyRegex --> NoiseFilter["Filter out matching titles"]
+NoiseFilter --> Dedupe
+Dedupe --> Out["Return final filtered commits"]
 ```
 
 **Diagram sources**
-- [report.ts:52-75](file://lib/report.ts#L52-L75)
+- [report.ts:31-75](file://lib/report.ts#L31-L75)
 
 **Section sources**
 - [report.ts:1-159](file://lib/report.ts#L1-L159)
+
+## Parallel Project Querying
+
+### Concurrent Processing Architecture
+The system now implements parallel project querying for improved performance:
+
+- **Promise.all utilization**: All project queries execute concurrently using Promise.all.
+- **Error isolation**: Individual project failures don't block the entire operation.
+- **Aggregate results**: Collects successful results and error information separately.
+- **Scalability**: Handles large numbers of projects efficiently without sequential bottlenecks.
+
+### Statistics Collection Enhancement
+Enhanced statistics route with parallel processing:
+- **Concurrent project analysis**: Processes multiple projects simultaneously.
+- **Commit categorization**: Categorizes commits by conventional commit types.
+- **Aggregated breakdown**: Provides both project-level and global breakdown statistics.
+- **Silent failure handling**: Continues processing even if individual project queries fail.
+
+```mermaid
+sequenceDiagram
+participant SC as "Stats Commits Route"
+participant PR as "Prisma"
+participant GL as "GitLab Client"
+SC->>PR : "find enabled projects"
+SC->>GL : "listCommits(projectId, since, until, branch?)"
+GL-->>SC : "GitLabCommit[]"
+SC->>SC : "filterCommits + parseConventional"
+SC->>SC : "categorize by type"
+SC-->>Client : "{total, breakdown, byProject}"
+```
+
+**Diagram sources**
+- [stats-commits/route.ts:47-129](file://app/api/stats/commits/route.ts#L47-L129)
+- [gitlab.ts:143-171](file://lib/gitlab.ts#L143-L171)
+- [report.ts:52-105](file://lib/report.ts#L52-L105)
+
+**Section sources**
+- [generate/route.ts:57-85](file://app/api/reports/generate/route.ts#L57-L85)
+- [stats-commits/route.ts:83-122](file://app/api/stats/commits/route.ts#L83-L122)
 
 ## Dependency Analysis
 - Routes depend on:
@@ -320,6 +418,7 @@ ApplyRegex --> Final
   - GitLab client for API calls.
   - Crypto for token encryption/decryption.
   - Prisma for persistence.
+  - Report utilities for enhanced filtering and processing.
 - Frontend depends on Next.js runtime and interacts with server routes.
 - Middleware enforces authentication for protected paths.
 
@@ -333,9 +432,14 @@ GR["generate/route.ts"] --> GL
 GR --> CR
 GR --> PR
 GR --> RP["report.ts"]
+SC["stats-commits/route.ts"] --> GL
+SC --> CR
+SC --> PR
+SC --> RP
 SE["session.ts"] --> VT
 SE --> PJ
 SE --> GR
+SE --> SC
 AU["auth.ts"] --> SE
 MW["middleware.ts"] --> SE
 SF["settings-form.tsx"] --> VT
@@ -343,67 +447,79 @@ SF --> PJ
 ```
 
 **Diagram sources**
-- [validate-token/route.ts:1-81](file://app/api/gitlab/validate-token/route.ts#L1-L81)
-- [projects/route.ts:1-42](file://app/api/gitlab/projects/route.ts#L1-L42)
+- [validate-token/route.ts:1-88](file://app/api/gitlab/validate-token/route.ts#L1-L88)
+- [projects/route.ts:1-163](file://app/api/gitlab/projects/route.ts#L1-L163)
 - [generate/route.ts:1-133](file://app/api/reports/generate/route.ts#L1-L133)
-- [gitlab.ts:1-149](file://lib/gitlab.ts#L1-L149)
+- [stats-commits/route.ts:1-129](file://app/api/stats/commits/route.ts#L1-L129)
+- [gitlab.ts:1-172](file://lib/gitlab.ts#L1-L172)
 - [crypto.ts:1-46](file://lib/crypto.ts#L1-L46)
 - [session.ts:1-56](file://lib/session.ts#L1-L56)
 - [auth.ts:1-77](file://lib/auth.ts#L1-L77)
 - [middleware.ts:1-10](file://middleware.ts#L1-L10)
 - [report.ts:1-159](file://lib/report.ts#L1-L159)
-- [schema.prisma:1-80](file://prisma/schema.prisma#L1-L80)
-- [settings-form.tsx:1-368](file://components/settings-form.tsx#L1-L368)
+- [schema.prisma:1-81](file://prisma/schema.prisma#L1-L81)
+- [settings-form.tsx:1-222](file://components/settings-form.tsx#L1-L222)
 
 **Section sources**
-- [validate-token/route.ts:1-81](file://app/api/gitlab/validate-token/route.ts#L1-L81)
-- [projects/route.ts:1-42](file://app/api/gitlab/projects/route.ts#L1-L42)
+- [validate-token/route.ts:1-88](file://app/api/gitlab/validate-token/route.ts#L1-L88)
+- [projects/route.ts:1-163](file://app/api/gitlab/projects/route.ts#L1-L163)
 - [generate/route.ts:1-133](file://app/api/reports/generate/route.ts#L1-L133)
-- [gitlab.ts:1-149](file://lib/gitlab.ts#L1-L149)
+- [stats-commits/route.ts:1-129](file://app/api/stats/commits/route.ts#L1-L129)
+- [gitlab.ts:1-172](file://lib/gitlab.ts#L1-L172)
 - [crypto.ts:1-46](file://lib/crypto.ts#L1-L46)
 - [session.ts:1-56](file://lib/session.ts#L1-L56)
 - [auth.ts:1-77](file://lib/auth.ts#L1-L77)
 - [middleware.ts:1-10](file://middleware.ts#L1-L10)
 - [report.ts:1-159](file://lib/report.ts#L1-L159)
-- [schema.prisma:1-80](file://prisma/schema.prisma#L1-L80)
-- [settings-form.tsx:1-368](file://components/settings-form.tsx#L1-L368)
+- [schema.prisma:1-81](file://prisma/schema.prisma#L1-L81)
+- [settings-form.tsx:1-222](file://components/settings-form.tsx#L1-L222)
 
 ## Performance Considerations
-- Pagination caps: The client limits pagination to a safety cap to avoid excessive API calls.
-- Batch project upsert: During token validation, only a limited number of projects are upserted in a single transaction.
-- Parallelism: Report generation fetches commits for multiple projects concurrently to reduce total latency.
-- Caching: The client sets cache=no-store to bypass browser caches; rely on application-level caching (e.g., storing recent results) if needed.
-- Network timeouts: Requests are aborted after a fixed timeout to prevent indefinite waits.
+- **Pagination caps**: The client limits pagination to a safety cap to avoid excessive API calls.
+- **Batch project upsert**: During token validation, only a limited number of projects are upserted in a single transaction.
+- **Parallelism**: Report generation and statistics collection fetch commits for multiple projects concurrently to reduce total latency.
+- **Caching**: The client sets cache=no-store to bypass browser caches; rely on application-level caching (e.g., storing recent results) if needed.
+- **Network timeouts**: Requests are aborted after a fixed timeout to prevent indefinite waits.
+- **Enhanced filtering efficiency**: Conventional commit parsing and merge detection are optimized for performance.
+- **Memory management**: Deduplication uses efficient Set-based lookups for O(1) average-case complexity.
 
 Recommendations:
 - Consider implementing a project-level cache keyed by date range and branch to avoid repeated GitLab API calls for the same window.
 - For large organizations, consider incremental synchronization of project metadata and last-seen commit timestamps.
 - Monitor API rate limits and implement retry/backoff with jitter if integrating with hosted GitLab instances.
+- Implement circuit breaker patterns for GitLab API calls to handle transient failures gracefully.
 
 **Section sources**
-- [gitlab.ts:94-109](file://lib/gitlab.ts#L94-L109)
-- [validate-token/route.ts:42-67](file://app/api/gitlab/validate-token/route.ts#L42-L67)
+- [gitlab.ts:95-121](file://lib/gitlab.ts#L95-L121)
+- [validate-token/route.ts:47-81](file://app/api/gitlab/validate-token/route.ts#L47-L81)
 - [generate/route.ts:57-85](file://app/api/reports/generate/route.ts#L57-L85)
+- [stats-commits/route.ts:83-122](file://app/api/stats/commits/route.ts#L83-L122)
 
 ## Troubleshooting Guide
 Common issues and resolutions:
-- Unauthorized or forbidden: Ensure the user is authenticated and authorized; routes return appropriate responses for missing sessions or insufficient roles.
-- Invalid or missing token: The validation route requires a token or an existing encrypted token; errors are surfaced with clear messages.
-- Project list load failure: The validation route continues and returns a warning alongside success when project cache refresh fails.
-- API errors: The GitLab client throws descriptive errors with HTTP status and response body; routes convert them to JSON responses.
-- Network issues: Timeouts abort long-running requests; consider retry logic at the caller level if needed.
+- **Unauthorized or forbidden**: Ensure the user is authenticated and authorized; routes return appropriate responses for missing sessions or insufficient roles.
+- **Invalid or missing token**: The validation route requires a token or an existing encrypted token; errors are surfaced with clear messages.
+- **Project list load failure**: The validation route continues and returns a warning alongside success when project cache refresh fails.
+- **API errors**: The GitLab client throws descriptive errors with HTTP status and response body; routes convert them to JSON responses.
+- **Network issues**: Timeouts abort long-running requests; consider retry logic at the caller level if needed.
+- **Conventional commit parsing failures**: Invalid commit messages fall back to title-based parsing without affecting overall processing.
+- **Merge commit filtering**: If merge commits are appearing unexpectedly, verify the dropMerges setting in filter options.
+- **Noise regex issues**: Invalid regex patterns are caught and ignored; check regex syntax if filtering isn't working as expected.
 
 Operational tips:
 - Verify ENCRYPTION_KEY environment variable length and format.
 - Confirm GitLab personal access token permissions (read_api and read_repository).
 - Check middleware configuration for protected paths.
+- Monitor API rate limits and implement appropriate backoff strategies.
+- Test conventional commit message formats to ensure proper parsing.
 
 **Section sources**
 - [session.ts:22-56](file://lib/session.ts#L22-L56)
-- [validate-token/route.ts:18-39](file://app/api/gitlab/validate-token/route.ts#L18-L39)
-- [validate-token/route.ts:68-74](file://app/api/gitlab/validate-token/route.ts#L68-L74)
-- [gitlab.ts:71-74](file://lib/gitlab.ts#L71-L74)
+- [validate-token/route.ts:18-27](file://app/api/gitlab/validate-token/route.ts#L18-L27)
+- [validate-token/route.ts:75-81](file://app/api/gitlab/validate-token/route.ts#L75-L81)
+- [gitlab.ts:75-84](file://lib/gitlab.ts#L75-L84)
 - [middleware.ts:3-9](file://middleware.ts#L3-L9)
+- [report.ts:56-63](file://lib/report.ts#L56-L63)
 
 ## Conclusion
-The GitLab integration is designed around a robust server-side API client, secure token handling, and a flexible report pipeline. It supports per-user project configuration, branch-specific queries, and configurable filtering for high-quality daily reports. With built-in error handling, timeouts, and pagination safeguards, the system is resilient for production use. Extending caching and incremental synchronization can further improve performance at scale.
+The GitLab integration has been significantly enhanced with improved commit filtering, conventional commit parsing, merge commit detection, noise filtering, and parallel project querying capabilities. The system now provides robust server-side API client functionality, secure token handling, flexible report pipeline, and efficient statistics collection. With built-in error handling, timeouts, pagination safeguards, and concurrent processing, the system is highly resilient and performant for production use. The enhanced filtering pipeline ensures high-quality daily reports with accurate commit categorization and deduplication. Extending caching and incremental synchronization can further improve performance at scale while maintaining the system's reliability and security standards.

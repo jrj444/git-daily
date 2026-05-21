@@ -35,7 +35,7 @@ export default function LoginPage() {
     <div className="min-h-screen grid place-items-center px-4">
       <form
         onSubmit={onSubmit}
-        className="w-full max-w-sm space-y-4 bg-white border border-border rounded-lg p-6 shadow-sm"
+        className="w-full max-w-sm space-y-4 bg-card border border-border rounded-lg p-6 shadow-sm"
       >
         <h1 className="text-xl font-semibold">Pingyun Report 登录</h1>
         <div>

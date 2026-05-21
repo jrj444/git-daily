@@ -88,7 +88,7 @@ export function UsersAdmin() {
 
   return (
     <div className="space-y-6">
-      <section className="bg-white border border-border rounded-lg p-4 space-y-3">
+      <section className="bg-card border border-border rounded-lg p-4 space-y-3">
         <h2 className="font-medium">新建用户</h2>
         <div className="grid sm:grid-cols-4 gap-3">
           <input
@@ -127,7 +127,7 @@ export function UsersAdmin() {
         </button>
       </section>
 
-      <section className="bg-white border border-border rounded-lg overflow-hidden">
+      <section className="bg-card border border-border rounded-lg overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-muted text-left">
             <tr>
@@ -156,10 +156,10 @@ export function UsersAdmin() {
                     <option value="ADMIN">管理员</option>
                   </select>
                 </td>
-                <td className="px-3 py-2 text-gray-600">
+                <td className="px-3 py-2 text-muted-foreground">
                   {u.gitlabEmail || "-"}
                 </td>
-                <td className="px-3 py-2 text-gray-500">
+                <td className="px-3 py-2 text-muted-foreground">
                   {new Date(u.createdAt).toLocaleString()}
                 </td>
                 <td className="px-3 py-2 whitespace-nowrap">

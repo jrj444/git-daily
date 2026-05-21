@@ -11,17 +11,17 @@ const TYPE_META: Record<
   string,
   { label: string; color: string; bg: string }
 > = {
-  feat: { label: "需求/功能", color: "text-green-700", bg: "bg-green-500" },
-  fix: { label: "Bug 修复", color: "text-red-700", bg: "bg-red-500" },
-  refactor: { label: "重构", color: "text-blue-700", bg: "bg-blue-500" },
-  docs: { label: "文档", color: "text-yellow-700", bg: "bg-yellow-500" },
-  style: { label: "样式/格式", color: "text-purple-700", bg: "bg-purple-500" },
-  test: { label: "测试", color: "text-cyan-700", bg: "bg-cyan-500" },
-  chore: { label: "杂务", color: "text-gray-700", bg: "bg-gray-500" },
-  perf: { label: "性能优化", color: "text-orange-700", bg: "bg-orange-500" },
-  ci: { label: "CI/CD", color: "text-indigo-700", bg: "bg-indigo-500" },
-  build: { label: "构建", color: "text-pink-700", bg: "bg-pink-500" },
-  other: { label: "其他", color: "text-slate-700", bg: "bg-slate-400" },
+  feat: { label: "需求/功能", color: "text-green-700 dark:text-green-400", bg: "bg-green-500" },
+  fix: { label: "Bug 修复", color: "text-red-700 dark:text-red-400", bg: "bg-red-500" },
+  refactor: { label: "重构", color: "text-blue-700 dark:text-blue-400", bg: "bg-blue-500" },
+  docs: { label: "文档", color: "text-yellow-700 dark:text-yellow-400", bg: "bg-yellow-500" },
+  style: { label: "样式/格式", color: "text-purple-700 dark:text-purple-400", bg: "bg-purple-500" },
+  test: { label: "测试", color: "text-cyan-700 dark:text-cyan-400", bg: "bg-cyan-500" },
+  chore: { label: "杂务", color: "text-foreground/70", bg: "bg-gray-500" },
+  perf: { label: "性能优化", color: "text-orange-700 dark:text-orange-400", bg: "bg-orange-500" },
+  ci: { label: "CI/CD", color: "text-indigo-700 dark:text-indigo-400", bg: "bg-indigo-500" },
+  build: { label: "构建", color: "text-pink-700 dark:text-pink-400", bg: "bg-pink-500" },
+  other: { label: "其他", color: "text-slate-700 dark:text-slate-300", bg: "bg-slate-400" },
 };
 
 const TYPE_KEYS = Object.keys(TYPE_META);
@@ -76,9 +76,9 @@ export function StatsView() {
   return (
     <div className="space-y-4">
       {/* Date range bar */}
-      <div className="flex flex-wrap items-end gap-3 bg-white border border-border rounded-lg p-4">
+      <div className="flex flex-wrap items-end gap-3 bg-card border border-border rounded-lg p-4">
         <div>
-          <label className="block text-xs text-gray-500 mb-1">开始日期</label>
+          <label className="block text-xs text-muted-foreground mb-1">开始日期</label>
           <input
             type="date"
             value={startDate}
@@ -87,7 +87,7 @@ export function StatsView() {
           />
         </div>
         <div>
-          <label className="block text-xs text-gray-500 mb-1">结束日期</label>
+          <label className="block text-xs text-muted-foreground mb-1">结束日期</label>
           <input
             type="date"
             value={endDate}
@@ -108,26 +108,26 @@ export function StatsView() {
         <>
           {/* Summary cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <SummaryCard label="总提交" value={data.total} color="text-gray-900" />
+            <SummaryCard label="总提交" value={data.total} color="text-foreground" />
             <SummaryCard
               label="需求/功能"
               value={data.breakdown.feat || 0}
-              color="text-green-700"
+              color="text-green-700 dark:text-green-400"
             />
             <SummaryCard
               label="Bug 修复"
               value={data.breakdown.fix || 0}
-              color="text-red-700"
+              color="text-red-700 dark:text-red-400"
             />
             <SummaryCard
               label="重构"
               value={data.breakdown.refactor || 0}
-              color="text-blue-700"
+              color="text-blue-700 dark:text-blue-400"
             />
           </div>
 
           {/* Full breakdown table */}
-          <div className="bg-white border border-border rounded-lg p-4">
+          <div className="bg-card border border-border rounded-lg p-4">
             <h2 className="font-medium mb-3">类型分布</h2>
             <div className="space-y-2">
               {TYPE_KEYS.map((key) => {
@@ -140,14 +140,14 @@ export function StatsView() {
                     <div className={cn("w-20 font-medium", meta.color)}>
                       {meta.label}
                     </div>
-                    <div className="flex-1 h-5 bg-gray-100 rounded overflow-hidden">
+                    <div className="flex-1 h-5 bg-muted rounded overflow-hidden">
                       <div
                         className={cn("h-full rounded", meta.bg)}
                         style={{ width: `${Math.max(pct, 0.5)}%` }}
                       />
                     </div>
                     <div className="w-10 text-right font-mono">{count}</div>
-                    <div className="w-14 text-right text-gray-500">
+                    <div className="w-14 text-right text-muted-foreground">
                       {pct.toFixed(1)}%
                     </div>
                   </div>
@@ -158,7 +158,7 @@ export function StatsView() {
 
           {/* Per-project breakdown */}
           {data.byProject.length > 0 && (
-            <div className="bg-white border border-border rounded-lg p-4">
+            <div className="bg-card border border-border rounded-lg p-4">
               <h2 className="font-medium mb-3">
                 项目明细（{data.byProject.length} 个项目）
               </h2>
@@ -176,7 +176,7 @@ export function StatsView() {
                       <span className="font-medium flex-1 text-left truncate">
                         {proj.name}
                       </span>
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-muted-foreground">
                         共 {proj.total} 次提交
                       </span>
                       <span className="text-xs">
@@ -201,7 +201,7 @@ export function StatsView() {
                               <div className={cn("w-16", meta.color)}>
                                 {meta.label}
                               </div>
-                              <div className="flex-1 h-3 bg-gray-100 rounded overflow-hidden">
+                              <div className="flex-1 h-3 bg-muted rounded overflow-hidden">
                                 <div
                                   className={cn("h-full rounded", meta.bg)}
                                   style={{
@@ -212,7 +212,7 @@ export function StatsView() {
                               <div className="w-8 text-right font-mono">
                                 {count}
                               </div>
-                              <div className="w-12 text-right text-gray-500">
+                              <div className="w-12 text-right text-muted-foreground">
                                 {pct.toFixed(1)}%
                               </div>
                             </div>
@@ -229,7 +229,7 @@ export function StatsView() {
       )}
 
       {data && data.total === 0 && (
-        <div className="bg-white border border-border rounded-lg p-6 text-center text-sm text-gray-500">
+        <div className="bg-card border border-border rounded-lg p-6 text-center text-sm text-muted-foreground">
           该时间范围内没有找到符合条件的提交记录
         </div>
       )}
@@ -249,8 +249,8 @@ function SummaryCard({
   color: string;
 }) {
   return (
-    <div className="bg-white border border-border rounded-lg p-4 text-center">
-      <div className="text-xs text-gray-500 mb-1">{label}</div>
+    <div className="bg-card border border-border rounded-lg p-4 text-center">
+      <div className="text-xs text-muted-foreground mb-1">{label}</div>
       <div className={cn("text-2xl font-bold", color)}>{value}</div>
     </div>
   );

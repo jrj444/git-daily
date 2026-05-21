@@ -11,13 +11,28 @@
 - [app/api/me/route.ts](file://app/api/me/route.ts)
 - [app/api/reports/generate/route.ts](file://app/api/reports/generate/route.ts)
 - [app/api/reports/route.ts](file://app/api/reports/route.ts)
+- [app/api/stats/commits/route.ts](file://app/api/stats/commits/route.ts)
+- [app/api/templates/preview/route.ts](file://app/api/templates/preview/route.ts)
 - [app/api/templates/route.ts](file://app/api/templates/route.ts)
 - [lib/auth.ts](file://lib/auth.ts)
 - [lib/session.ts](file://lib/session.ts)
 - [lib/gitlab.ts](file://lib/gitlab.ts)
 - [lib/report.ts](file://lib/report.ts)
 - [middleware.ts](file://middleware.ts)
+- [components/projects-manager.tsx](file://components/projects-manager.tsx)
+- [components/stats-view.tsx](file://components/stats-view.tsx)
+- [components/templates-manager.tsx](file://components/templates-manager.tsx)
+- [prisma/schema.prisma](file://prisma/schema.prisma)
 </cite>
+
+## Update Summary
+**Changes Made**
+- Added comprehensive statistics dashboard API endpoint (`/api/stats/commits`)
+- Added template preview API endpoint (`/api/templates/preview`)
+- Enhanced project management with alias support and improved validation
+- Added detailed documentation for new project management features
+- Updated GitLab integration endpoints with comprehensive functionality
+- Enhanced template management with preview capabilities
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -32,12 +47,12 @@
 10. [Appendices](#appendices)
 
 ## Introduction
-This document describes the Pingyun Report REST API surface implemented under the Next.js app router. It covers authentication via NextAuth.js, user self-service endpoints, admin-only endpoints, report CRUD and generation, GitLab integration, template management, and the AI polish endpoint for LLM-assisted report polishing. For each endpoint, we specify HTTP methods, URL patterns, request/response schemas, validation rules, error responses, and security requirements. Practical examples and integration guidelines are included.
+This document describes the Pingyun Report REST API surface implemented under the Next.js app router. It covers authentication via NextAuth.js, user self-service endpoints, admin-only endpoints, report CRUD and generation, GitLab integration, template management, statistics dashboard, and the AI polish endpoint for LLM-assisted report polishing. For each endpoint, we specify HTTP methods, URL patterns, request/response schemas, validation rules, error responses, and security requirements. Practical examples and integration guidelines are included.
 
 ## Project Structure
 The API is organized under app/api with feature-based grouping:
 - Authentication: NextAuth.js integration under app/api/auth[...nextauth]
-- User self-service: app/api/me, app/api/reports, app/api/templates
+- User self-service: app/api/me, app/api/reports, app/api/templates, app/api/stats
 - Admin: app/api/admin/{team-reports, users}
 - GitLab integration: app/api/gitlab/{projects, validate-token}
 - AI polish: app/api/ai/polish
@@ -49,7 +64,9 @@ AUTH["auth[...nextauth]"]
 ME["me"]
 REPORTS["reports"]
 REPORTS_GEN["reports/generate"]
+STATS_COMMITS["stats/commits"]
 TEMPLATES["templates"]
+TEMPLATES_PREVIEW["templates/preview"]
 GITLAB_PROJ["gitlab/projects"]
 GITLAB_VALIDATE["gitlab/validate-token"]
 ADMIN_USERS["admin/users"]
@@ -59,7 +76,9 @@ end
 AUTH --> ME
 ME --> REPORTS
 REPORTS --> REPORTS_GEN
+ME --> STATS_COMMITS
 ME --> TEMPLATES
+TEMPLATES --> TEMPLATES_PREVIEW
 ME --> GITLAB_PROJ
 ME --> GITLAB_VALIDATE
 ADMIN_USERS --> ADMIN_TEAM
@@ -71,7 +90,9 @@ ME --> AI_POLISH
 - [app/api/me/route.ts](file://app/api/me/route.ts)
 - [app/api/reports/route.ts](file://app/api/reports/route.ts)
 - [app/api/reports/generate/route.ts](file://app/api/reports/generate/route.ts)
+- [app/api/stats/commits/route.ts](file://app/api/stats/commits/route.ts)
 - [app/api/templates/route.ts](file://app/api/templates/route.ts)
+- [app/api/templates/preview/route.ts](file://app/api/templates/preview/route.ts)
 - [app/api/gitlab/projects/route.ts](file://app/api/gitlab/projects/route.ts)
 - [app/api/gitlab/validate-token/route.ts](file://app/api/gitlab/validate-token/route.ts)
 - [app/api/admin/users/route.ts](file://app/api/admin/users/route.ts)
@@ -82,7 +103,9 @@ ME --> AI_POLISH
 - [app/api/me/route.ts](file://app/api/me/route.ts)
 - [app/api/reports/route.ts](file://app/api/reports/route.ts)
 - [app/api/reports/generate/route.ts](file://app/api/reports/generate/route.ts)
+- [app/api/stats/commits/route.ts](file://app/api/stats/commits/route.ts)
 - [app/api/templates/route.ts](file://app/api/templates/route.ts)
+- [app/api/templates/preview/route.ts](file://app/api/templates/preview/route.ts)
 - [app/api/gitlab/projects/route.ts](file://app/api/gitlab/projects/route.ts)
 - [app/api/gitlab/validate-token/route.ts](file://app/api/gitlab/validate-token/route.ts)
 - [app/api/admin/users/route.ts](file://app/api/admin/users/route.ts)
@@ -101,6 +124,7 @@ ME --> AI_POLISH
 - Persistence: Prisma ORM for user, report, template, and project entities.
 - GitLab integration: server-only client for validating tokens, listing projects, and fetching commits.
 - Report rendering: Handlebars templating with conventional commit parsing and deduplication.
+- Statistics processing: Commit categorization and aggregation for dashboard visualization.
 
 **Section sources**
 - [lib/auth.ts](file://lib/auth.ts)
@@ -235,6 +259,31 @@ API-->>Client : {date, content, templateId, context, errors}
 - [lib/gitlab.ts](file://lib/gitlab.ts)
 - [lib/report.ts](file://lib/report.ts)
 
+#### GET /api/stats/commits
+- Description: Generate statistics dashboard data for a date range.
+- Authentication: Required.
+- Query parameters:
+  - startDate: YYYY-MM-DD (required).
+  - endDate: YYYY-MM-DD (required).
+- Validation:
+  - Requires user to have gitlabBaseUrl and gitlabToken set.
+  - Filters merges, deduplicates, applies noiseRegex, and categorizes commits by type.
+- Response fields:
+  - total: number (total commits across all projects).
+  - breakdown: object (commit counts by type: feat, fix, refactor, docs, style, test, chore, perf, ci, build, other).
+  - byProject: array of { name, total, breakdown } (statistics per project).
+- Notes:
+  - Uses decrypted GitLab token from user record.
+  - Projects considered are enabled.
+  - Commit types are categorized using conventional commit parsing.
+
+**Updated** Added comprehensive statistics dashboard API endpoint for commit analytics and visualization.
+
+**Section sources**
+- [app/api/stats/commits/route.ts](file://app/api/stats/commits/route.ts)
+- [lib/gitlab.ts](file://lib/gitlab.ts)
+- [lib/report.ts](file://lib/report.ts)
+
 #### GET /api/templates
 - Description: List templates; creates default template if none exist.
 - Authentication: Required.
@@ -280,24 +329,80 @@ API-->>Client : {date, content, templateId, context, errors}
 **Section sources**
 - [app/api/templates/route.ts](file://app/api/templates/route.ts)
 
+#### POST /api/templates/preview
+- Description: Preview template rendering with sample data.
+- Authentication: Required.
+- Request body:
+  - body: string (template content, min length 1).
+- Response fields:
+  - content: string (rendered template output).
+  - error: string (error message if template rendering fails).
+- Notes:
+  - Uses sample commit data and current date for rendering.
+  - Returns empty content with error field on template rendering failure.
+
+**Updated** Added template preview API endpoint for real-time template testing.
+
+**Section sources**
+- [app/api/templates/preview/route.ts](file://app/api/templates/preview/route.ts)
+- [lib/report.ts](file://lib/report.ts)
+
 #### GET /api/gitlab/projects
 - Description: List projects associated with the current user.
 - Authentication: Required.
 - Response fields:
-  - projects: array of { id, nameWithNamespace, webUrl, defaultBranch, enabled }.
+  - projects: array of { id, nameWithNamespace, webUrl, defaultBranch, enabled, alias }.
+
+**Updated** Enhanced project management with alias support and improved response structure.
 
 **Section sources**
 - [app/api/gitlab/projects/route.ts](file://app/api/gitlab/projects/route.ts)
 
 #### PATCH /api/gitlab/projects
-- Description: Update project settings (enabled, defaultBranch).
+- Description: Update project settings (enabled, defaultBranch, alias).
 - Authentication: Required.
 - Request body:
   - id: string.
   - enabled: boolean, optional.
   - defaultBranch: string|null, optional.
+  - alias: string|null, optional.
 - Response: { project: updated }.
 - Notes: Only updates projects owned by the current user.
+
+**Updated** Enhanced project management with alias support and improved validation.
+
+**Section sources**
+- [app/api/gitlab/projects/route.ts](file://app/api/gitlab/projects/route.ts)
+
+#### POST /api/gitlab/projects
+- Description: Add a new project or refresh all projects.
+- Authentication: Required.
+- Request body:
+  - idOrPath: string (numeric GitLab project id or full path like "group/subgroup/repo"), optional.
+  - refreshAll: boolean (when true, re-fetches the full membership project list), optional.
+- Response fields:
+  - ok: boolean.
+  - count: number (number of projects added when refreshAll is true).
+  - project: object (added project details when adding single project).
+- Notes:
+  - When refreshAll is true, up to 500 projects are processed.
+  - When adding single project, validates project existence and upserts into database.
+  - Projects are initially disabled when added individually.
+
+**Updated** Enhanced project management with bulk refresh capability and improved validation.
+
+**Section sources**
+- [app/api/gitlab/projects/route.ts](file://app/api/gitlab/projects/route.ts)
+
+#### DELETE /api/gitlab/projects
+- Description: Delete a project by id.
+- Authentication: Required.
+- Query parameters:
+  - id: string (required).
+- Response: { ok: true }.
+- Notes: Only deletes projects owned by the current user.
+
+**Updated** Added project deletion endpoint for cleanup operations.
 
 **Section sources**
 - [app/api/gitlab/projects/route.ts](file://app/api/gitlab/projects/route.ts)
@@ -407,7 +512,9 @@ graph LR
 SESSION["lib/session.ts"] --> ROUTE_ME["app/api/me/route.ts"]
 SESSION --> ROUTE_REPORTS["app/api/reports/route.ts"]
 SESSION --> ROUTE_REPORTS_GEN["app/api/reports/generate/route.ts"]
+SESSION --> ROUTE_STATS_COMMITS["app/api/stats/commits/route.ts"]
 SESSION --> ROUTE_TEMPLATES["app/api/templates/route.ts"]
+SESSION --> ROUTE_TEMPLATES_PREVIEW["app/api/templates/preview/route.ts"]
 SESSION --> ROUTE_GITLAB_PROJ["app/api/gitlab/projects/route.ts"]
 SESSION --> ROUTE_GITLAB_VALIDATE["app/api/gitlab/validate-token/route.ts"]
 SESSION --> ROUTE_AI["app/api/ai/polish/route.ts"]
@@ -418,19 +525,26 @@ MWARE["middleware.ts"] --> ROUTE_AUTH
 MWARE --> ROUTE_ME
 MWARE --> ROUTE_REPORTS
 MWARE --> ROUTE_REPORTS_GEN
+MWARE --> ROUTE_STATS_COMMITS
 MWARE --> ROUTE_TEMPLATES
+MWARE --> ROUTE_TEMPLATES_PREVIEW
 MWARE --> ROUTE_GITLAB_PROJ
 MWARE --> ROUTE_GITLAB_VALIDATE
 MWARE --> ROUTE_AI
 MWARE --> ROUTE_ADMIN_USERS
 MWARE --> ROUTE_ADMIN_TEAM
 GITLAB["lib/gitlab.ts"] --> ROUTE_REPORTS_GEN
+GITLAB --> ROUTE_STATS_COMMITS
 GITLAB --> ROUTE_GITLAB_VALIDATE
 REPORT["lib/report.ts"] --> ROUTE_REPORTS_GEN
+REPORT --> ROUTE_STATS_COMMITS
+REPORT --> ROUTE_TEMPLATES_PREVIEW
 PRISMA["Prisma ORM"] --> ROUTE_ME
 PRISMA --> ROUTE_REPORTS
 PRISMA --> ROUTE_REPORTS_GEN
+PRISMA --> ROUTE_STATS_COMMITS
 PRISMA --> ROUTE_TEMPLATES
+PRISMA --> ROUTE_TEMPLATES_PREVIEW
 PRISMA --> ROUTE_GITLAB_PROJ
 PRISMA --> ROUTE_GITLAB_VALIDATE
 PRISMA --> ROUTE_ADMIN_USERS
@@ -446,7 +560,9 @@ PRISMA --> ROUTE_ADMIN_TEAM
 - [app/api/me/route.ts](file://app/api/me/route.ts)
 - [app/api/reports/route.ts](file://app/api/reports/route.ts)
 - [app/api/reports/generate/route.ts](file://app/api/reports/generate/route.ts)
+- [app/api/stats/commits/route.ts](file://app/api/stats/commits/route.ts)
 - [app/api/templates/route.ts](file://app/api/templates/route.ts)
+- [app/api/templates/preview/route.ts](file://app/api/templates/preview/route.ts)
 - [app/api/gitlab/projects/route.ts](file://app/api/gitlab/projects/route.ts)
 - [app/api/gitlab/validate-token/route.ts](file://app/api/gitlab/validate-token/route.ts)
 - [app/api/ai/polish/route.ts](file://app/api/ai/polish/route.ts)
@@ -462,7 +578,9 @@ PRISMA --> ROUTE_ADMIN_TEAM
 - [app/api/me/route.ts](file://app/api/me/route.ts)
 - [app/api/reports/route.ts](file://app/api/reports/route.ts)
 - [app/api/reports/generate/route.ts](file://app/api/reports/generate/route.ts)
+- [app/api/stats/commits/route.ts](file://app/api/stats/commits/route.ts)
 - [app/api/templates/route.ts](file://app/api/templates/route.ts)
+- [app/api/templates/preview/route.ts](file://app/api/templates/preview/route.ts)
 - [app/api/gitlab/projects/route.ts](file://app/api/gitlab/projects/route.ts)
 - [app/api/gitlab/validate-token/route.ts](file://app/api/gitlab/validate-token/route.ts)
 - [app/api/ai/polish/route.ts](file://app/api/ai/polish/route.ts)
@@ -474,12 +592,12 @@ PRISMA --> ROUTE_ADMIN_TEAM
 - Concurrency and retries:
   - GitLab client enforces a 20-second timeout and paginates with safety caps to avoid excessive load.
   - Report generation performs concurrent project commit fetching; ensure GitLab API quotas are considered.
+  - Statistics endpoint processes projects concurrently with error handling for individual project failures.
 - Caching:
   - Project cache is refreshed during token validation; consider adding CDN or server-side caching for repeated reads.
+  - Template preview responses are computed per request; consider caching compiled templates per user/template if needed.
 - Rendering:
   - Template compilation occurs per request; consider caching compiled templates per user/template if needed.
-
-[No sources needed since this section provides general guidance]
 
 ## Troubleshooting Guide
 - Authentication failures:
@@ -487,11 +605,15 @@ PRISMA --> ROUTE_ADMIN_TEAM
   - 403 Forbidden: Admin-required endpoint accessed by non-admin user.
 - Validation errors:
   - 400 Bad Request: Malformed date, missing id, invalid field lengths/types.
+  - Date format validation: YYYY-MM-DD format required for startDate and endDate parameters.
 - GitLab integration:
   - 404 Not Found: Project not found under current user.
   - 502 Bad Gateway: Upstream GitLab or LLM service failure; check baseUrl/token/environment variables.
 - Internal errors:
   - 500 Internal Server Error: Unexpected server-side exceptions; check logs.
+- Statistics endpoint:
+  - Individual project failures are handled gracefully; statistics continue processing other projects.
+  - Commit categorization handles unknown types as "other" category.
 
 **Section sources**
 - [lib/session.ts](file://lib/session.ts)
@@ -500,11 +622,10 @@ PRISMA --> ROUTE_ADMIN_TEAM
 - [app/api/gitlab/projects/route.ts](file://app/api/gitlab/projects/route.ts)
 - [app/api/gitlab/validate-token/route.ts](file://app/api/gitlab/validate-token/route.ts)
 - [app/api/ai/polish/route.ts](file://app/api/ai/polish/route.ts)
+- [app/api/stats/commits/route.ts](file://app/api/stats/commits/route.ts)
 
 ## Conclusion
-The Pingyun Report API provides a cohesive set of endpoints for user self-service, admin oversight, GitLab integration, and AI-assisted report polishing. Authentication is handled centrally via NextAuth.js with JWT sessions, and strict validation ensures robust request handling. For production deployments, consider adding rate limiting, monitoring, and secure transport.
-
-[No sources needed since this section summarizes without analyzing specific files]
+The Pingyun Report API provides a comprehensive set of endpoints for user self-service, admin oversight, GitLab integration, statistics dashboard, template management, and AI-assisted report polishing. Authentication is handled centrally via NextAuth.js with JWT sessions, and strict validation ensures robust request handling. The addition of statistics dashboard and template preview capabilities enhances the platform's analytical and customization features. For production deployments, consider adding rate limiting, monitoring, and secure transport.
 
 ## Appendices
 
@@ -526,15 +647,21 @@ Representative request/response shapes and validation rules:
   - POST /api/reports: body { date, content, templateId?, rawCommits? }; returns report.
   - DELETE /api/reports: query param date (YYYY-MM-DD); returns { ok: true }.
 
+- Statistics
+  - GET /api/stats/commits: query params startDate (YYYY-MM-DD) and endDate (YYYY-MM-DD); returns { total, breakdown, byProject }.
+
 - Templates
   - GET /api/templates: returns templates[].
   - POST /api/templates: body { name, body, isDefault? }; returns template.
   - PATCH /api/templates: body { id, name?, body?, isDefault? }; returns template.
   - DELETE /api/templates: query param id; returns { ok: true }.
+  - POST /api/templates/preview: body { body }; returns { content, error? }.
 
 - GitLab
-  - GET /api/gitlab/projects: returns projects[].
-  - PATCH /api/gitlab/projects: body { id, enabled?, defaultBranch? }; returns project.
+  - GET /api/gitlab/projects: returns projects[] with alias field.
+  - PATCH /api/gitlab/projects: body { id, enabled?, defaultBranch?, alias? }; returns project.
+  - POST /api/gitlab/projects: body { idOrPath?, refreshAll? }; returns ok/count/project.
+  - DELETE /api/gitlab/projects: query param id; returns { ok: true }.
   - POST /api/gitlab/validate-token: body { baseUrl, token? }; returns ok/user/warning.
 
 - AI Polish
@@ -550,7 +677,9 @@ Representative request/response shapes and validation rules:
 **Section sources**
 - [app/api/reports/route.ts](file://app/api/reports/route.ts)
 - [app/api/reports/generate/route.ts](file://app/api/reports/generate/route.ts)
+- [app/api/stats/commits/route.ts](file://app/api/stats/commits/route.ts)
 - [app/api/templates/route.ts](file://app/api/templates/route.ts)
+- [app/api/templates/preview/route.ts](file://app/api/templates/preview/route.ts)
 - [app/api/gitlab/projects/route.ts](file://app/api/gitlab/projects/route.ts)
 - [app/api/gitlab/validate-token/route.ts](file://app/api/gitlab/validate-token/route.ts)
 - [app/api/ai/polish/route.ts](file://app/api/ai/polish/route.ts)
@@ -561,4 +690,25 @@ Representative request/response shapes and validation rules:
 - No explicit API versioning header or URL segment is used in the current implementation.
 - Backward compatibility is not enforced; breaking changes may occur without notice.
 
-[No sources needed since this section provides general guidance]
+### Project Management Features
+- Project alias support: Users can set custom aliases for projects to improve readability.
+- Bulk project operations: Support for refreshing all projects and batch deletion of disabled projects.
+- Enhanced filtering: Projects can be filtered by alias, name, or ID.
+- Improved validation: Better error handling for project operations and validation.
+
+**Section sources**
+- [app/api/gitlab/projects/route.ts](file://app/api/gitlab/projects/route.ts)
+- [components/projects-manager.tsx](file://components/projects-manager.tsx)
+- [prisma/schema.prisma](file://prisma/schema.prisma)
+
+### Statistics Dashboard Features
+- Commit categorization: Automatic classification of commits into predefined categories.
+- Type breakdown: Detailed statistics for feat, fix, refactor, docs, style, test, chore, perf, ci, build, and other types.
+- Project-level analysis: Per-project commit distribution and type breakdown.
+- Date range filtering: Flexible date range selection for historical analysis.
+- Graceful error handling: Individual project failures don't prevent overall statistics generation.
+
+**Section sources**
+- [app/api/stats/commits/route.ts](file://app/api/stats/commits/route.ts)
+- [components/stats-view.tsx](file://components/stats-view.tsx)
+- [lib/report.ts](file://lib/report.ts)

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import dayjs from "dayjs";
 import toast from "react-hot-toast";
+import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 
 const MDEditor = dynamic(() => import("@uiw/react-md-editor"), { ssr: false });
@@ -21,6 +22,14 @@ export function HistoryView() {
   const [content, setContent] = useState("");
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const { resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  const colorMode: "light" | "dark" =
+    mounted && resolvedTheme === "dark" ? "dark" : "light";
 
   const days = useMemo(() => {
     const start = dayjs(month + "-01").startOf("month");
@@ -91,7 +100,7 @@ export function HistoryView() {
 
   return (
     <div className="grid md:grid-cols-[320px_1fr] gap-4">
-      <div className="bg-white border border-border rounded-lg p-3">
+      <div className="bg-card border border-border rounded-lg p-3">
         <div className="flex items-center mb-3">
           <button
             onClick={() =>
@@ -111,7 +120,7 @@ export function HistoryView() {
             ▶
           </button>
         </div>
-        <div className="grid grid-cols-7 text-xs text-center text-gray-500 mb-1">
+        <div className="grid grid-cols-7 text-xs text-center text-muted-foreground mb-1">
           {["日", "一", "二", "三", "四", "五", "六"].map((d) => (
             <div key={d} className="py-1">
               {d}
@@ -143,7 +152,7 @@ export function HistoryView() {
                   <span
                     className={cn(
                       "absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full",
-                      isSelected ? "bg-white" : "bg-primary"
+                      isSelected ? "bg-primary-foreground" : "bg-primary"
                     )}
                   />
                 )}
@@ -153,15 +162,15 @@ export function HistoryView() {
         </div>
       </div>
 
-      <div className="bg-white border border-border rounded-lg">
+      <div className="bg-card border border-border rounded-lg">
         {!selectedDate ? (
-          <div className="p-6 text-sm text-gray-500">从日历选择一天查看</div>
+          <div className="p-6 text-sm text-muted-foreground">从日历选择一天查看</div>
         ) : (
           <div className="flex flex-col">
             <div className="flex items-center gap-2 px-4 py-2 border-b border-border">
               <div className="font-medium">{selectedDate}</div>
               {!haveSet.has(selectedDate) && (
-                <span className="text-xs text-gray-500">（无记录）</span>
+                <span className="text-xs text-muted-foreground">（无记录）</span>
               )}
               <div className="ml-auto flex items-center gap-2">
                 <button
@@ -190,7 +199,7 @@ export function HistoryView() {
               </div>
             </div>
             {editing ? (
-              <div data-color-mode="light">
+              <div data-color-mode={colorMode}>
                 <MDEditor
                   value={content}
                   onChange={(v) => setContent(v ?? "")}
@@ -199,7 +208,7 @@ export function HistoryView() {
                 />
               </div>
             ) : (
-              <div data-color-mode="light" className="p-4">
+              <div data-color-mode={colorMode} className="p-4">
                 <MDPreview source={content || "*暂无内容*"} />
               </div>
             )}

@@ -178,7 +178,7 @@ export function ProjectsManager() {
 
   return (
     <div className="space-y-4">
-      <section className="bg-white border border-border rounded-lg p-4 space-y-3">
+      <section className="bg-card border border-border rounded-lg p-4 space-y-3">
         <h2 className="font-medium">添加项目</h2>
         <div className="flex flex-col sm:flex-row gap-2">
           <input
@@ -208,18 +208,18 @@ export function ProjectsManager() {
             </button>
           </div>
         </div>
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-muted-foreground">
           提示：GitLab 项目页【Settings → General】顶部可看到 Project ID；或直接填写路径，如{" "}
           <code className="font-mono">frontend/web</code>。
         </p>
       </section>
 
-      <section className="bg-white border border-border rounded-lg p-4 space-y-3">
+      <section className="bg-card border border-border rounded-lg p-4 space-y-3">
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 flex-wrap">
           <h2 className="font-medium">
             项目列表（{enabledCount}/{projects.length} 已启用）
           </h2>
-          <label className="text-xs text-gray-500 flex items-center gap-1">
+          <label className="text-xs text-muted-foreground flex items-center gap-1">
             <input
               type="checkbox"
               checked={showOnlyEnabled}
@@ -243,9 +243,9 @@ export function ProjectsManager() {
         </div>
 
         {loading ? (
-          <div className="text-sm text-gray-500 py-6 text-center">加载中…</div>
+          <div className="text-sm text-muted-foreground py-6 text-center">加载中…</div>
         ) : filtered.length === 0 ? (
-          <div className="text-sm text-gray-500 py-6 text-center">
+          <div className="text-sm text-muted-foreground py-6 text-center">
             {projects.length === 0
               ? "暂无项目。请在上方添加，或先在『设置』中保存 GitLab 连接。"
               : "没有匹配的项目。"}
@@ -253,7 +253,7 @@ export function ProjectsManager() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="text-left text-xs text-gray-500 border-b border-border">
+              <thead className="text-left text-xs text-muted-foreground border-b border-border">
                 <tr>
                   <th className="py-2 pr-2 w-10">启用</th>
                   <th className="py-2 pr-2">项目</th>
@@ -278,13 +278,13 @@ export function ProjectsManager() {
                         {p.alias || p.nameWithNamespace}
                       </div>
                       {p.alias && (
-                        <div className="text-xs text-gray-400">
+                        <div className="text-xs text-muted-foreground/80">
                           {p.nameWithNamespace}
                         </div>
                       )}
                       {p.webUrl && (
                         <a
-                          className="text-xs text-gray-500 hover:underline"
+                          className="text-xs text-muted-foreground hover:underline"
                           href={p.webUrl}
                           target="_blank"
                           rel="noreferrer"
@@ -307,7 +307,7 @@ export function ProjectsManager() {
                         }}
                       />
                     </td>
-                    <td className="py-2 pr-2 text-xs font-mono text-gray-500">
+                    <td className="py-2 pr-2 text-xs font-mono text-muted-foreground">
                       {p.gitlabProjectId}
                     </td>
                     <td className="py-2 pr-2">

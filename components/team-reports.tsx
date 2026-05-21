@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import dayjs from "dayjs";
+import { useTheme } from "next-themes";
 
 const MDEditor = dynamic(() => import("@uiw/react-md-editor"), { ssr: false });
 const MDPreview = dynamic(
@@ -29,6 +30,14 @@ export function TeamReports() {
   const [rows, setRows] = useState<Row[]>([]);
   const [active, setActive] = useState<string | null>(null);
 
+  const { resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  const colorMode: "light" | "dark" =
+    mounted && resolvedTheme === "dark" ? "dark" : "light";
+
   async function load() {
     const res = await fetch(`/api/admin/team-reports?date=${date}`);
     const data = await res.json();
@@ -46,9 +55,9 @@ export function TeamReports() {
 
   return (
     <div className="space-y-4">
-      <div className="bg-white border border-border rounded-lg p-4 flex flex-wrap items-center gap-4">
+      <div className="bg-card border border-border rounded-lg p-4 flex flex-wrap items-center gap-4">
         <div>
-          <label className="block text-xs text-gray-500 mb-1">日期</label>
+          <label className="block text-xs text-muted-foreground mb-1">日期</label>
           <input
             type="date"
             value={date}
@@ -56,7 +65,7 @@ export function TeamReports() {
             className="border border-border rounded px-2 py-1 text-sm"
           />
         </div>
-        <div className="text-sm text-gray-600">
+        <div className="text-sm text-muted-foreground">
           已提交：<span className="text-primary font-medium">{submitted}</span>
           {" / "}
           {total}
@@ -64,8 +73,8 @@ export function TeamReports() {
       </div>
 
       <div className="grid md:grid-cols-[280px_1fr] gap-4">
-        <div className="bg-white border border-border rounded-lg overflow-hidden">
-          <div className="text-xs px-3 py-2 text-gray-500 bg-muted">成员</div>
+        <div className="bg-card border border-border rounded-lg overflow-hidden">
+          <div className="text-xs px-3 py-2 text-muted-foreground bg-muted">成员</div>
           <ul className="divide-y divide-border max-h-[400px] md:max-h-[600px] overflow-y-auto">
             {rows.map((r) => (
               <li
@@ -77,12 +86,12 @@ export function TeamReports() {
               >
                 <span
                   className={`w-2 h-2 rounded-full ${
-                    r.report ? "bg-green-500" : "bg-gray-300"
+                    r.report ? "bg-green-500" : "bg-gray-300 dark:bg-gray-600"
                   }`}
                 />
                 <span className="flex-1">
                   {r.user.displayName}
-                  <span className="text-xs text-gray-400 ml-1">
+                  <span className="text-xs text-muted-foreground ml-1">
                     @{r.user.username}
                   </span>
                 </span>
@@ -94,16 +103,16 @@ export function TeamReports() {
           </ul>
         </div>
 
-        <div className="bg-white border border-border rounded-lg p-4">
+        <div className="bg-card border border-border rounded-lg p-4">
           {!activeRow ? (
-            <div className="text-sm text-gray-500">从左侧选择成员</div>
+            <div className="text-sm text-muted-foreground">从左侧选择成员</div>
           ) : !activeRow.report ? (
-            <div className="text-sm text-gray-500">
+            <div className="text-sm text-muted-foreground">
               {activeRow.user.displayName} 当日未提交日报
             </div>
           ) : (
-            <div data-color-mode="light">
-              <div className="text-xs text-gray-500 mb-2">
+            <div data-color-mode={colorMode}>
+              <div className="text-xs text-muted-foreground mb-2">
                 更新时间：
                 {new Date(activeRow.report.updatedAt).toLocaleString()}
               </div>
