@@ -6,6 +6,9 @@
 - [package.json](file://package.json)
 - [app/settings/page.tsx](file://app/settings/page.tsx)
 - [components/settings-form.tsx](file://components/settings-form.tsx)
+- [components/theme-toggle.tsx](file://components/theme-toggle.tsx)
+- [app/providers.tsx](file://app/providers.tsx)
+- [components/nav.tsx](file://components/nav.tsx)
 - [lib/crypto.ts](file://lib/crypto.ts)
 - [lib/gitlab.ts](file://lib/gitlab.ts)
 - [lib/report.ts](file://lib/report.ts)
@@ -17,7 +20,16 @@
 - [app/api/gitlab/projects/route.ts](file://app/api/gitlab/projects/route.ts)
 - [app/api/templates/route.ts](file://app/api/templates/route.ts)
 - [app/api/reports/generate/route.ts](file://app/api/reports/generate/route.ts)
+- [tailwind.config.ts](file://tailwind.config.ts)
+- [next.config.mjs](file://next.config.mjs)
 </cite>
+
+## Update Summary
+**Changes Made**
+- Added documentation for ThemeToggle component usage and theme preferences management
+- Documented automatic system preference detection through next-themes integration
+- Updated navigation component integration with theme toggle functionality
+- Enhanced UI/UX considerations for theme switching and persistence
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -32,18 +44,21 @@
 10. [Appendices](#appendices)
 
 ## Introduction
-This document explains Pingyun Report’s settings and configuration system. It covers user preferences, GitLab configuration (base URL and personal access token), project-specific settings, encryption of sensitive tokens, template management, system-wide configuration and environment variables, noise regex for commit filtering, branch-specific project settings, configuration validation, backup and migration strategies, and common configuration scenarios with troubleshooting guidance.
+This document explains Pingyun Report's settings and configuration system. It covers user preferences, GitLab configuration (base URL and personal access token), project-specific settings, encryption of sensitive tokens, template management, system-wide configuration and environment variables, noise regex for commit filtering, branch-specific project settings, configuration validation, backup and migration strategies, theme preferences and system preference detection, and common configuration scenarios with troubleshooting guidance.
 
 ## Project Structure
-The settings and configuration system spans the UI, API routes, encryption utilities, GitLab client, report builder, and database schema. The UI exposes a settings page and form for managing preferences and GitLab connectivity. Server-side API routes validate and persist settings, while the encryption utility protects sensitive tokens. The report generator consumes user preferences and project settings to produce daily reports.
+The settings and configuration system spans the UI, API routes, encryption utilities, GitLab client, report builder, and database schema. The UI exposes a settings page and form for managing preferences and GitLab connectivity, along with theme preferences managed through the ThemeToggle component. Server-side API routes validate and persist settings, while the encryption utility protects sensitive tokens. The report generator consumes user preferences and project settings to produce daily reports.
 
 ```mermaid
 graph TB
 UI_Settings["UI Settings Page<br/>app/settings/page.tsx"] --> UI_Form["Settings Form<br/>components/settings-form.tsx"]
+UI_Settings --> UI_Theme["Theme Toggle<br/>components/theme-toggle.tsx"]
 UI_Form --> API_Me["GET/PATCH /api/me<br/>app/api/me/route.ts"]
 UI_Form --> API_Token["POST /api/gitlab/validate-token<br/>app/api/gitlab/validate-token/route.ts"]
 UI_Form --> API_Projects["GET/PATCH /api/gitlab/projects<br/>app/api/gitlab/projects/route.ts"]
 UI_Form --> API_Templates["GET/POST/PATCH/DELETE /api/templates<br/>app/api/templates/route.ts"]
+UI_Theme --> Providers["Theme Provider<br/>app/providers.tsx"]
+Providers --> Nav["Navigation<br/>components/nav.tsx"]
 API_Token --> Crypto["Encryption/Decryption<br/>lib/crypto.ts"]
 API_Token --> GL_Client["GitLab Client<br/>lib/gitlab.ts"]
 API_Projects --> DB["Prisma Schema<br/>prisma/schema.prisma"]
@@ -58,6 +73,9 @@ Gen_Report --> DB
 **Diagram sources**
 - [app/settings/page.tsx:1-21](file://app/settings/page.tsx#L1-L21)
 - [components/settings-form.tsx:1-368](file://components/settings-form.tsx#L1-L368)
+- [components/theme-toggle.tsx:1-103](file://components/theme-toggle.tsx#L1-L103)
+- [app/providers.tsx:1-18](file://app/providers.tsx#L1-L18)
+- [components/nav.tsx:1-176](file://components/nav.tsx#L1-L176)
 - [app/api/me/route.ts:1-67](file://app/api/me/route.ts#L1-L67)
 - [app/api/gitlab/validate-token/route.ts:1-81](file://app/api/gitlab/validate-token/route.ts#L1-L81)
 - [app/api/gitlab/projects/route.ts:1-42](file://app/api/gitlab/projects/route.ts#L1-L42)
@@ -69,18 +87,22 @@ Gen_Report --> DB
 
 **Section sources**
 - [README.md:1-86](file://README.md#L1-L86)
-- [package.json:1-47](file://package.json#L1-L47)
+- [package.json:1-48](file://package.json#L1-L48)
 
 ## Core Components
-- Settings UI: Presents GitLab connection, noise regex, project toggles and branches, and template management.
+- Settings UI: Presents GitLab connection, noise regex, project toggles and branches, template management, and theme preferences.
+- Theme Management: Three-state theme toggle (light → dark → system) with automatic system preference detection via next-themes.
 - API routes: Persist and retrieve user preferences, validate GitLab tokens, manage projects, and manage templates.
 - Encryption: AES-256-GCM encryption/decryption for GitLab tokens at rest.
 - GitLab client: Server-side REST client to validate tokens and list projects/commits.
 - Report utilities: Commit filtering, deduplication, conventional commit parsing, and template rendering.
-- Database schema: Stores user preferences, project settings, and templates.
+- Database schema: Stores user preferences, project settings, templates, and theme preferences.
 
 **Section sources**
 - [components/settings-form.tsx:1-368](file://components/settings-form.tsx#L1-L368)
+- [components/theme-toggle.tsx:1-103](file://components/theme-toggle.tsx#L1-L103)
+- [app/providers.tsx:1-18](file://app/providers.tsx#L1-L18)
+- [components/nav.tsx:1-176](file://components/nav.tsx#L1-L176)
 - [app/api/me/route.ts:1-67](file://app/api/me/route.ts#L1-L67)
 - [app/api/gitlab/validate-token/route.ts:1-81](file://app/api/gitlab/validate-token/route.ts#L1-L81)
 - [app/api/gitlab/projects/route.ts:1-42](file://app/api/gitlab/projects/route.ts#L1-L42)
@@ -91,15 +113,18 @@ Gen_Report --> DB
 - [prisma/schema.prisma:1-80](file://prisma/schema.prisma#L1-L80)
 
 ## Architecture Overview
-The settings system is a client-server architecture:
-- Client: React UI fetches and updates settings via API endpoints.
+The settings system is a client-server architecture with enhanced theme management:
+- Client: React UI fetches and updates settings via API endpoints, with theme preferences managed through ThemeToggle component.
 - Server: Route handlers enforce authentication, validate inputs, call encryption utilities, and interact with the database and GitLab API.
+- Theme system: next-themes manages theme state, persistence, and system preference detection across components.
 - Data protection: Tokens are encrypted before storage and never returned to the client; only a masked preview is shown.
 
 ```mermaid
 sequenceDiagram
 participant Browser as "Browser"
 participant UI as "SettingsForm<br/>components/settings-form.tsx"
+participant Theme as "ThemeToggle<br/>components/theme-toggle.tsx"
+participant Providers as "Providers<br/>app/providers.tsx"
 participant API as "API Routes"
 participant Crypto as "Crypto<br/>lib/crypto.ts"
 participant DB as "Prisma<br/>prisma/schema.prisma"
@@ -117,11 +142,16 @@ API->>DB : Upsert user (baseUrl, userId, email, token?)
 API->>GL : listProjects(baseUrl, token)
 GL-->>API : Projects
 API->>DB : Upsert projects (name, url, defaultBranch)
+Browser->>Theme : Click Theme Toggle
+Theme->>Providers : setTheme(theme)
+Providers->>Providers : Persist theme preference
 API-->>UI : {ok, user, warning?}
 ```
 
 **Diagram sources**
 - [components/settings-form.tsx:44-88](file://components/settings-form.tsx#L44-L88)
+- [components/theme-toggle.tsx:10-29](file://components/theme-toggle.tsx#L10-L29)
+- [app/providers.tsx:8-15](file://app/providers.tsx#L8-L15)
 - [app/api/me/route.ts:7-47](file://app/api/me/route.ts#L7-L47)
 - [app/api/gitlab/validate-token/route.ts:13-80](file://app/api/gitlab/validate-token/route.ts#L13-L80)
 - [lib/crypto.ts:18-38](file://lib/crypto.ts#L18-L38)
@@ -147,6 +177,27 @@ Security:
 - [lib/crypto.ts:40-46](file://lib/crypto.ts#L40-L46)
 - [components/settings-form.tsx:44-107](file://components/settings-form.tsx#L44-L107)
 
+### Theme Preferences and System Preference Detection
+- Three-state theme toggle: light → dark → system → light cycling with persistent state.
+- Automatic system preference detection through next-themes integration.
+- Theme persistence across browser sessions and page reloads.
+- Visual indicators: sun icon for light mode, moon icon for dark mode, laptop icon for system mode.
+- Hydration-safe implementation preventing SSR/client mismatch.
+
+Implementation details:
+- ThemeToggle component uses next-themes hooks for theme state management.
+- Providers component wraps the application with ThemeProvider configured for system preference detection.
+- Theme state is persisted in localStorage and synchronized across components.
+- Navigation integrates ThemeToggle for easy theme switching.
+
+**Updated** Added comprehensive theme management system with automatic system preference detection.
+
+**Section sources**
+- [components/theme-toggle.tsx:1-103](file://components/theme-toggle.tsx#L1-L103)
+- [app/providers.tsx:1-18](file://app/providers.tsx#L1-L18)
+- [components/nav.tsx:99-100](file://components/nav.tsx#L99-L100)
+- [components/nav.tsx:162](file://components/nav.tsx#L162)
+
 ### GitLab Configuration: Base URL and Token
 - Base URL: Required for all GitLab API calls.
 - Personal Access Token (PAT): Optional for saving but validated if present; if absent, the existing encrypted token is reused for validation.
@@ -165,7 +216,7 @@ Branch-specific project settings:
 - [prisma/schema.prisma:16-49](file://prisma/schema.prisma#L16-L49)
 
 ### Project-Specific Settings
-- Listing projects: GET /api/gitlab/projects returns user’s projects ordered by enabled status and namespace.
+- Listing projects: GET /api/gitlab/projects returns user's projects ordered by enabled status and namespace.
 - Updating project settings:
   - Toggle enabled flag.
   - Set default branch per project (null resets to default branch).
@@ -192,7 +243,7 @@ Branch-specific project settings:
   - POST: Creates a new template; setting isDefault clears existing defaults.
   - PATCH: Updates name/body/isDefault; setting isDefault clears existing defaults.
   - DELETE: Removes a template by id.
-- Report generation selects either a provided templateId or the user’s default template.
+- Report generation selects either a provided templateId or the user's default template.
 
 **Section sources**
 - [app/api/templates/route.ts:7-96](file://app/api/templates/route.ts#L7-L96)
@@ -203,7 +254,7 @@ Branch-specific project settings:
 - Encryption key is required as a 64-character hex string (32 bytes) via ENCRYPTION_KEY environment variable.
 - encrypt(): Generates a random 12-byte IV, encrypts with GCM, appends tag, and returns base64-encoded payload.
 - decrypt(): Parses base64 payload, splits into IV, tag, and ciphertext, then decrypts and verifies authenticity.
-- maskToken(): Produces a safe display preview like “glpat-xxxx...yzzw”.
+- maskToken(): Produces a safe display preview like "glpat-xxxx...yzzw".
 
 Security implications:
 - Tokens are stored encrypted at rest.
@@ -242,6 +293,8 @@ Gen-->>Client : {content, templateId, context, errors}
 
 ## Dependency Analysis
 - UI depends on API routes for fetching and persisting settings.
+- Theme system depends on next-themes library for state management and persistence.
+- Navigation integrates ThemeToggle component for theme switching.
 - API routes depend on:
   - Authentication utilities for session checks.
   - Encryption utilities for secure token handling.
@@ -255,6 +308,9 @@ UI["SettingsForm<br/>components/settings-form.tsx"] --> API_ME["/api/me<br/>app/
 UI --> API_TOKEN["/api/gitlab/validate-token<br/>app/api/gitlab/validate-token/route.ts"]
 UI --> API_PROJ["/api/gitlab/projects<br/>app/api/gitlab/projects/route.ts"]
 UI --> API_TPL["/api/templates<br/>app/api/templates/route.ts"]
+THEME["ThemeToggle<br/>components/theme-toggle.tsx"] --> PROVIDERS["Providers<br/>app/providers.tsx"]
+NAV["Nav<br/>components/nav.tsx"] --> THEME
+PROVIDERS --> NEXT_THEMES["next-themes"]
 API_TOKEN --> CRYPTO["lib/crypto.ts"]
 API_TOKEN --> GL["lib/gitlab.ts"]
 API_PROJ --> DB["prisma/schema.prisma"]
@@ -268,6 +324,9 @@ GEN --> DB
 
 **Diagram sources**
 - [components/settings-form.tsx:1-368](file://components/settings-form.tsx#L1-L368)
+- [components/theme-toggle.tsx:1-103](file://components/theme-toggle.tsx#L1-L103)
+- [app/providers.tsx:1-18](file://app/providers.tsx#L1-L18)
+- [components/nav.tsx:1-176](file://components/nav.tsx#L1-L176)
 - [app/api/me/route.ts:1-67](file://app/api/me/route.ts#L1-L67)
 - [app/api/gitlab/validate-token/route.ts:1-81](file://app/api/gitlab/validate-token/route.ts#L1-L81)
 - [app/api/gitlab/projects/route.ts:1-42](file://app/api/gitlab/projects/route.ts#L1-L42)
@@ -286,11 +345,13 @@ GEN --> DB
 - Pagination and limits: GitLab client paginates with per_page caps and safety caps to avoid excessive requests.
 - Caching: Project lists are upserted after token validation to reduce repeated GitLab calls.
 - Filtering: Commit filtering and deduplication occur server-side before rendering to minimize client workload.
+- Theme performance: next-themes manages theme state efficiently with minimal re-renders and localStorage persistence.
 
 **Section sources**
 - [lib/gitlab.ts:91-111](file://lib/gitlab.ts#L91-L111)
 - [app/api/gitlab/validate-token/route.ts:40-67](file://app/api/gitlab/validate-token/route.ts#L40-L67)
 - [lib/report.ts:52-88](file://lib/report.ts#L52-L88)
+- [components/theme-toggle.tsx:14-21](file://components/theme-toggle.tsx#L14-L21)
 
 ## Troubleshooting Guide
 Common issues and resolutions:
@@ -306,6 +367,9 @@ Common issues and resolutions:
   - See [app/api/gitlab/validate-token/route.ts:68-74](file://app/api/gitlab/validate-token/route.ts#L68-L74)
 - Template rendering errors: Fallback content is returned; inspect template syntax.
   - See [lib/report.ts:137-144](file://lib/report.ts#L137-L144)
+- Theme switching issues: Ensure next-themes is properly configured in Providers; check for console errors.
+  - See [app/providers.tsx:8-15](file://app/providers.tsx#L8-L15)
+  - See [components/theme-toggle.tsx:10-29](file://components/theme-toggle.tsx#L10-L29)
 
 **Section sources**
 - [lib/session.ts:22-55](file://lib/session.ts#L22-L55)
@@ -313,9 +377,11 @@ Common issues and resolutions:
 - [app/api/gitlab/validate-token/route.ts:13-39](file://app/api/gitlab/validate-token/route.ts#L13-L39)
 - [README.md:65-71](file://README.md#L65-L71)
 - [lib/report.ts:137-144](file://lib/report.ts#L137-L144)
+- [app/providers.tsx:8-15](file://app/providers.tsx#L8-L15)
+- [components/theme-toggle.tsx:10-29](file://components/theme-toggle.tsx#L10-L29)
 
 ## Conclusion
-Pingyun Report’s settings and configuration system provides a secure, user-friendly way to manage GitLab connectivity, project selection, commit filtering, and templates. Sensitive tokens are protected with AES-256-GCM encryption, and all GitLab API calls are performed server-side. The system supports branch-specific project settings and flexible template customization, with robust validation and error handling.
+Pingyun Report's settings and configuration system provides a secure, user-friendly way to manage GitLab connectivity, project selection, commit filtering, templates, and theme preferences. Sensitive tokens are protected with AES-256-GCM encryption, and all GitLab API calls are performed server-side. The system supports branch-specific project settings, flexible template customization, automatic system preference detection through next-themes, and robust validation and error handling. The theme management system offers seamless switching between light, dark, and system themes with persistent state across sessions.
 
 ## Appendices
 
@@ -330,10 +396,29 @@ Pingyun Report’s settings and configuration system provides a secure, user-fri
 Security notes:
 - Tokens are encrypted at rest; rotate ENCRYPTION_KEY carefully and re-encrypt tokens.
 - GitLab API calls are server-side; tokens never leave the server.
+- Theme preferences are stored locally and do not affect server-side security.
 
 **Section sources**
 - [README.md:54-71](file://README.md#L54-L71)
 - [lib/crypto.ts:7-15](file://lib/crypto.ts#L7-L15)
+
+### Theme Management Configuration
+- Theme system powered by next-themes library with automatic system preference detection.
+- Theme states: light, dark, system (follows OS/browser theme).
+- Persistence: Theme preferences saved to localStorage and synchronized across components.
+- Hydration safety: Prevents SSR/client mismatch during initial render.
+- Integration: ThemeToggle component accessible in navigation for easy switching.
+
+Configuration details:
+- ThemeProvider configured with `attribute="class"` for CSS variable support.
+- `defaultTheme="system"` sets system as default theme.
+- `enableSystem=true` enables automatic system preference detection.
+- `disableTransitionOnChange` prevents transition animations during theme changes.
+
+**Section sources**
+- [components/theme-toggle.tsx:1-103](file://components/theme-toggle.tsx#L1-L103)
+- [app/providers.tsx:1-18](file://app/providers.tsx#L1-L18)
+- [tailwind.config.ts:4](file://tailwind.config.ts#L4)
 
 ### Configuration Validation and Backup Procedures
 - Validation:
@@ -343,9 +428,11 @@ Security notes:
 - Backup:
   - Back up the MySQL database regularly.
   - Preserve ENCRYPTION_KEY; losing it prevents decryption of stored tokens.
+  - Theme preferences are stored locally and do not require server backup.
 - Migration strategies:
   - Apply Prisma migrations to update schema.
-  - For encryption key rotation, re-encrypt stored tokens and update all users’ PATs.
+  - For encryption key rotation, re-encrypt stored tokens and update all users' PATs.
+  - Theme system updates are handled automatically by next-themes library.
 
 **Section sources**
 - [app/api/gitlab/validate-token/route.ts:8-11](file://app/api/gitlab/validate-token/route.ts#L8-L11)
@@ -359,11 +446,14 @@ Security notes:
   - Enable desired projects and set default branches.
   - Adjust noise regex to filter unwanted commits.
   - Create or customize templates.
+  - Configure theme preferences using ThemeToggle in navigation.
   - Reference: [README.md:27-33](file://README.md#L27-L33)
 - Daily usage:
   - Open the home page to auto-generate a report for the current day.
   - Edit markdown and save to persist.
+  - Switch themes using ThemeToggle for optimal viewing conditions.
   - Reference: [README.md:34-39](file://README.md#L34-L39)
 
 **Section sources**
 - [README.md:27-39](file://README.md#L27-L39)
+- [components/theme-toggle.tsx:25-29](file://components/theme-toggle.tsx#L25-L29)
