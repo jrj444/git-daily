@@ -2,47 +2,16 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import dayjs from "dayjs";
 import { prisma } from "@/lib/prisma";
-import { decrypt } from "@/lib/crypto";
 import { withErrors, requireUser } from "@/lib/session";
-import { listCommits } from "@/lib/gitlab";
-import { filterCommits, parseConventional } from "@/lib/report";
-
-const KNOWN_TYPES = [
-  "feat",
-  "fix",
-  "refactor",
-  "docs",
-  "style",
-  "test",
-  "chore",
-  "perf",
-  "ci",
-  "build",
-] as const;
-
-type CommitType = (typeof KNOWN_TYPES)[number] | "other";
+import { computeUserStats } from "@/lib/stats";
 
 const dateRe = /^\d{4}-\d{2}-\d{2}$/;
 
 const Query = z.object({
   startDate: z.string().regex(dateRe, "expected YYYY-MM-DD"),
   endDate: z.string().regex(dateRe, "expected YYYY-MM-DD"),
+  userId: z.string().optional(),
 });
-
-function categorize(type: string | undefined): CommitType {
-  if (!type) return "other";
-  const lower = type.toLowerCase();
-  if ((KNOWN_TYPES as readonly string[]).includes(lower))
-    return lower as CommitType;
-  return "other";
-}
-
-function emptyBreakdown(): Record<CommitType, number> {
-  const bd: Record<string, number> = {};
-  for (const t of KNOWN_TYPES) bd[t] = 0;
-  bd["other"] = 0;
-  return bd as Record<CommitType, number>;
-}
 
 export const GET = withErrors(async (req: Request) => {
   const session = await requireUser();
@@ -50,100 +19,35 @@ export const GET = withErrors(async (req: Request) => {
   const q = Query.parse({
     startDate: url.searchParams.get("startDate") || "",
     endDate: url.searchParams.get("endDate") || "",
+    userId: url.searchParams.get("userId") || undefined,
   });
+
+  // Admin override: when querying a different user, require ADMIN role.
+  const targetUserId = q.userId || session.id;
+  if (targetUserId !== session.id && session.role !== "ADMIN") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const since = dayjs(q.startDate).startOf("day").toISOString();
   const until = dayjs(q.endDate).add(1, "day").startOf("day").toISOString();
 
-  const user = await prisma.user.findUnique({ where: { id: session.id } });
+  const user = await prisma.user.findUnique({ where: { id: targetUserId } });
   if (!user)
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   if (!user.gitlabBaseUrl || !user.gitlabToken) {
     return NextResponse.json(
-      { error: "请先在『设置』中配置 GitLab 地址与 Token" },
+      { error: "该用户尚未配置 GitLab 地址与 Token" },
       { status: 400 }
     );
   }
 
-  const projects = await prisma.project.findMany({
-    where: { userId: user.id, enabled: true },
-  });
+  const stats = await computeUserStats(user, since, until);
+  if (!stats) {
+    return NextResponse.json(
+      { error: "该用户尚未配置 GitLab 地址与 Token" },
+      { status: 400 }
+    );
+  }
 
-  const token = decrypt(user.gitlabToken);
-  const opts = { baseUrl: user.gitlabBaseUrl, token };
-
-  type CommitItem = {
-    short_id: string;
-    title: string;
-    type: CommitType;
-    web_url: string | null;
-    authored_date: string;
-  };
-
-  const totalBreakdown = emptyBreakdown();
-  let total = 0;
-  const byProject: {
-    name: string;
-    total: number;
-    breakdown: Record<CommitType, number>;
-    commits: CommitItem[];
-  }[] = [];
-
-  await Promise.all(
-    projects.map(async (p) => {
-      try {
-        const commits = await listCommits(opts, {
-          projectId: p.gitlabProjectId,
-          since,
-          until,
-          branch: p.defaultBranch || undefined,
-        });
-
-        const filtered = filterCommits(commits, {
-          authorEmail: user.gitlabEmail || undefined,
-          noiseRegex: user.noiseRegex,
-          dropMerges: true,
-        });
-
-        const projBreakdown = emptyBreakdown();
-        const projCommits: CommitItem[] = [];
-        let projTotal = 0;
-
-        for (const c of filtered) {
-          const parsed = parseConventional(c.message || c.title || "");
-          const cat = categorize(parsed.type);
-          projBreakdown[cat]++;
-          totalBreakdown[cat]++;
-          projTotal++;
-          total++;
-          projCommits.push({
-            short_id: c.short_id,
-            title: parsed.subject || c.title || c.message || "",
-            type: cat,
-            web_url: c.web_url ?? null,
-            authored_date: c.authored_date,
-          });
-        }
-
-        if (projTotal > 0) {
-          projCommits.sort((a, b) =>
-            b.authored_date.localeCompare(a.authored_date)
-          );
-          byProject.push({
-            name: p.alias || p.nameWithNamespace,
-            total: projTotal,
-            breakdown: projBreakdown,
-            commits: projCommits,
-          });
-        }
-      } catch {
-        // skip failed projects silently for stats
-      }
-    })
-  );
-
-  // Sort by project total descending
-  byProject.sort((a, b) => b.total - a.total);
-
-  return NextResponse.json({ total, breakdown: totalBreakdown, byProject });
+  return NextResponse.json(stats);
 });
