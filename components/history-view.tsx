@@ -23,6 +23,12 @@ export function HistoryView() {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Export state
+  const [showExport, setShowExport] = useState(false);
+  const [exportStart, setExportStart] = useState(dayjs().startOf("month").format("YYYY-MM-DD"));
+  const [exportEnd, setExportEnd] = useState(dayjs().format("YYYY-MM-DD"));
+  const [exporting, setExporting] = useState(false);
+
   const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
@@ -94,13 +100,65 @@ export function HistoryView() {
     }
   }
 
+  async function handleExport() {
+    if (!exportStart || !exportEnd) {
+      toast.error("请选择起止日期");
+      return;
+    }
+    if (dayjs(exportEnd).isBefore(dayjs(exportStart))) {
+      toast.error("结束日期不能早于开始日期");
+      return;
+    }
+    setExporting(true);
+    try {
+      const res = await fetch(
+        `/api/reports/export?startDate=${exportStart}&endDate=${exportEnd}`
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data?.error || "导出失败");
+        return;
+      }
+      const reports: { date: string; content: string }[] = data.reports || [];
+      if (reports.length === 0) {
+        toast.error("该范围内暂无日报");
+        return;
+      }
+      // Build markdown
+      const lines = [`# 日报 ${exportStart} ~ ${exportEnd}\n`];
+      reports.forEach((r, i) => {
+        lines.push(`## ${r.date}\n`);
+        lines.push(r.content);
+        if (i < reports.length - 1) lines.push("\n---\n");
+      });
+      const md = lines.join("\n");
+      // Trigger download
+      const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `日报_${exportStart}_to_${exportEnd}.md`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success(`已导出 ${reports.length} 篇日报`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "网络错误";
+      toast.error(`导出失败：${msg}`);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   useEffect(() => {
     void loadMonth();
   }, [month]);
 
   return (
     <div className="grid md:grid-cols-[320px_1fr] gap-4">
-      <div className="bg-card border border-border rounded-lg p-3">
+      <div className="space-y-3">
+        <div className="bg-card border border-border rounded-lg p-3">
         <div className="flex items-center mb-3">
           <button
             onClick={() =>
@@ -159,6 +217,47 @@ export function HistoryView() {
               </button>
             );
           })}
+        </div>
+        </div>
+
+        {/* Export panel */}
+        <div className="bg-card border border-border rounded-lg p-3">
+          <button
+            onClick={() => setShowExport(!showExport)}
+            className="w-full flex items-center justify-between text-sm font-medium"
+          >
+            <span>导出日报</span>
+            <span className="text-xs">{showExport ? "▲" : "▼"}</span>
+          </button>
+          {showExport && (
+            <div className="mt-3 space-y-2">
+              <div>
+                <label className="block text-xs text-muted-foreground mb-1">开始日期</label>
+                <input
+                  type="date"
+                  value={exportStart}
+                  onChange={(e) => setExportStart(e.target.value)}
+                  className="w-full border border-border rounded px-2 py-1 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-muted-foreground mb-1">结束日期</label>
+                <input
+                  type="date"
+                  value={exportEnd}
+                  onChange={(e) => setExportEnd(e.target.value)}
+                  className="w-full border border-border rounded px-2 py-1 text-sm"
+                />
+              </div>
+              <button
+                onClick={handleExport}
+                disabled={exporting}
+                className="w-full px-3 py-1.5 text-sm rounded bg-primary text-primary-foreground disabled:opacity-60"
+              >
+                {exporting ? "导出中…" : "导出 Markdown"}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
