@@ -62,8 +62,9 @@ export function Nav({ user }: Props) {
   return (
     <header className="border-b border-border bg-card relative" ref={menuRef}>
       <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-4 md:gap-6">
-        <Link href="/" className="font-semibold shrink-0">
-          Pingyun Report
+        <Link href="/" className="flex items-center gap-2 font-semibold shrink-0">
+          <img src="/images/logo.png" alt="极报" className="w-6 h-6" />
+          <span>极报</span>
         </Link>
 
         {/* Desktop nav */}

@@ -2,8 +2,8 @@ version: "3.8"
 services:
   app:
     build: .
-    image: pingyun-report
-    container_name: pingyun-report
+    image: git-daily
+    container_name: git-daily
     restart: unless-stopped
     ports:
       - "3000:3000"

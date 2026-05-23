@@ -1,4 +1,4 @@
-# Pingyun Report — 团队日报管理系统
+# GitDaily（极报）— 团队日报管理系统
 
 基于 Next.js 的全栈日报管理工具，对接自建 GitLab 读取提交记录并自动生成日报。支持多用户、模板管理、提交统计分析、团队概览、AI 润色等功能。
 
@@ -129,7 +129,7 @@ Docker 构建流程：
 ## 项目结构
 
 ```
-pingyun-report/
+git-daily/
 ├── app/                          # Next.js App Router 页面与 API
 │   ├── api/
 │   │   ├── admin/                # 管理员接口
