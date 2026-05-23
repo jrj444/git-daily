@@ -2,6 +2,8 @@
 
 <cite>
 **Referenced Files in This Document**
+- [app/api/admin/team-reports/range/route.ts](file://app/api/admin/team-reports/range/route.ts)
+- [app/api/admin/stats/team/route.ts](file://app/api/admin/stats/team/route.ts)
 - [app/api/admin/team-reports/route.ts](file://app/api/admin/team-reports/route.ts)
 - [app/api/admin/users/route.ts](file://app/api/admin/users/route.ts)
 - [app/api/ai/polish/route.ts](file://app/api/ai/polish/route.ts)
@@ -18,21 +20,24 @@
 - [lib/session.ts](file://lib/session.ts)
 - [lib/gitlab.ts](file://lib/gitlab.ts)
 - [lib/report.ts](file://lib/report.ts)
+- [lib/stats.ts](file://lib/stats.ts)
 - [middleware.ts](file://middleware.ts)
 - [components/projects-manager.tsx](file://components/projects-manager.tsx)
 - [components/stats-view.tsx](file://components/stats-view.tsx)
 - [components/templates-manager.tsx](file://components/templates-manager.tsx)
+- [components/team/overview-tab.tsx](file://components/team/overview-tab.tsx)
+- [components/team/member-stats-tab.tsx](file://components/team/member-stats-tab.tsx)
 - [prisma/schema.prisma](file://prisma/schema.prisma)
 </cite>
 
 ## Update Summary
 **Changes Made**
-- Added comprehensive statistics dashboard API endpoint (`/api/stats/commits`)
-- Added template preview API endpoint (`/api/templates/preview`)
-- Enhanced project management with alias support and improved validation
-- Added detailed documentation for new project management features
-- Updated GitLab integration endpoints with comprehensive functionality
-- Enhanced template management with preview capabilities
+- Added new team reports range endpoint (`/api/admin/team-reports/range`) for team submission heatmaps
+- Added new team statistics endpoint (`/api/admin/stats/team`) for aggregated team commit analytics
+- Enhanced stats commits endpoint with admin override functionality via `userId` parameter
+- Improved error handling and validation across all admin endpoints
+- Added comprehensive team statistics dashboard with member ranking and commit type distribution
+- Enhanced team member statistics with individual user commit analysis
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -53,7 +58,7 @@ This document describes the Pingyun Report REST API surface implemented under th
 The API is organized under app/api with feature-based grouping:
 - Authentication: NextAuth.js integration under app/api/auth[...nextauth]
 - User self-service: app/api/me, app/api/reports, app/api/templates, app/api/stats
-- Admin: app/api/admin/{team-reports, users}
+- Admin: app/api/admin/{team-reports, users, stats}
 - GitLab integration: app/api/gitlab/{projects, validate-token}
 - AI polish: app/api/ai/polish
 
@@ -71,6 +76,8 @@ GITLAB_PROJ["gitlab/projects"]
 GITLAB_VALIDATE["gitlab/validate-token"]
 ADMIN_USERS["admin/users"]
 ADMIN_TEAM["admin/team-reports"]
+ADMIN_TEAM_RANGE["admin/team-reports/range"]
+ADMIN_TEAM_STATS["admin/stats/team"]
 AI_POLISH["ai/polish"]
 end
 AUTH --> ME
@@ -82,6 +89,8 @@ TEMPLATES --> TEMPLATES_PREVIEW
 ME --> GITLAB_PROJ
 ME --> GITLAB_VALIDATE
 ADMIN_USERS --> ADMIN_TEAM
+ADMIN_TEAM --> ADMIN_TEAM_RANGE
+ADMIN_TEAM --> ADMIN_TEAM_STATS
 ME --> AI_POLISH
 ```
 
@@ -97,6 +106,8 @@ ME --> AI_POLISH
 - [app/api/gitlab/validate-token/route.ts](file://app/api/gitlab/validate-token/route.ts)
 - [app/api/admin/users/route.ts](file://app/api/admin/users/route.ts)
 - [app/api/admin/team-reports/route.ts](file://app/api/admin/team-reports/route.ts)
+- [app/api/admin/team-reports/range/route.ts](file://app/api/admin/team-reports/range/route.ts)
+- [app/api/admin/stats/team/route.ts](file://app/api/admin/stats/team/route.ts)
 - [app/api/ai/polish/route.ts](file://app/api/ai/polish/route.ts)
 
 **Section sources**
@@ -110,11 +121,14 @@ ME --> AI_POLISH
 - [app/api/gitlab/validate-token/route.ts](file://app/api/gitlab/validate-token/route.ts)
 - [app/api/admin/users/route.ts](file://app/api/admin/users/route.ts)
 - [app/api/admin/team-reports/route.ts](file://app/api/admin/team-reports/route.ts)
+- [app/api/admin/team-reports/range/route.ts](file://app/api/admin/team-reports/range/route.ts)
+- [app/api/admin/stats/team/route.ts](file://app/api/admin/stats/team/route.ts)
 - [app/api/ai/polish/route.ts](file://app/api/ai/polish/route.ts)
 - [lib/auth.ts](file://lib/auth.ts)
 - [lib/session.ts](file://lib/session.ts)
 - [lib/gitlab.ts](file://lib/gitlab.ts)
 - [lib/report.ts](file://lib/report.ts)
+- [lib/stats.ts](file://lib/stats.ts)
 - [middleware.ts](file://middleware.ts)
 
 ## Core Components
@@ -124,7 +138,7 @@ ME --> AI_POLISH
 - Persistence: Prisma ORM for user, report, template, and project entities.
 - GitLab integration: server-only client for validating tokens, listing projects, and fetching commits.
 - Report rendering: Handlebars templating with conventional commit parsing and deduplication.
-- Statistics processing: Commit categorization and aggregation for dashboard visualization.
+- Statistics processing: Commit categorization and aggregation for dashboard visualization with enhanced error handling.
 
 **Section sources**
 - [lib/auth.ts](file://lib/auth.ts)
@@ -132,6 +146,7 @@ ME --> AI_POLISH
 - [middleware.ts](file://middleware.ts)
 - [lib/gitlab.ts](file://lib/gitlab.ts)
 - [lib/report.ts](file://lib/report.ts)
+- [lib/stats.ts](file://lib/stats.ts)
 
 ## Architecture Overview
 High-level flow for report generation and GitLab integration:
@@ -260,29 +275,37 @@ API-->>Client : {date, content, templateId, context, errors}
 - [lib/report.ts](file://lib/report.ts)
 
 #### GET /api/stats/commits
-- Description: Generate statistics dashboard data for a date range.
+- Description: Generate statistics dashboard data for a date range with admin override functionality.
 - Authentication: Required.
 - Query parameters:
   - startDate: YYYY-MM-DD (required).
   - endDate: YYYY-MM-DD (required).
+  - userId: string, optional (admin override for other users).
 - Validation:
   - Requires user to have gitlabBaseUrl and gitlabToken set.
   - Filters merges, deduplicates, applies noiseRegex, and categorizes commits by type.
+  - Admins can query other users' statistics via userId parameter.
 - Response fields:
   - total: number (total commits across all projects).
   - breakdown: object (commit counts by type: feat, fix, refactor, docs, style, test, chore, perf, ci, build, other).
   - byProject: array of { name, total, breakdown } (statistics per project).
+- Error handling:
+  - Returns 403 Forbidden when non-admin tries to access another user's data.
+  - Returns 404 User not found when target user doesn't exist.
+  - Returns 400 when GitLab credentials are missing.
 - Notes:
   - Uses decrypted GitLab token from user record.
   - Projects considered are enabled.
   - Commit types are categorized using conventional commit parsing.
+  - Admin override requires ADMIN role for accessing other users' data.
 
-**Updated** Added comprehensive statistics dashboard API endpoint for commit analytics and visualization.
+**Updated** Enhanced with admin override functionality allowing administrators to query other users' commit statistics.
 
 **Section sources**
 - [app/api/stats/commits/route.ts](file://app/api/stats/commits/route.ts)
 - [lib/gitlab.ts](file://lib/gitlab.ts)
 - [lib/report.ts](file://lib/report.ts)
+- [lib/stats.ts](file://lib/stats.ts)
 
 #### GET /api/templates
 - Description: List templates; creates default template if none exist.
@@ -341,8 +364,6 @@ API-->>Client : {date, content, templateId, context, errors}
   - Uses sample commit data and current date for rendering.
   - Returns empty content with error field on template rendering failure.
 
-**Updated** Added template preview API endpoint for real-time template testing.
-
 **Section sources**
 - [app/api/templates/preview/route.ts](file://app/api/templates/preview/route.ts)
 - [lib/report.ts](file://lib/report.ts)
@@ -352,8 +373,6 @@ API-->>Client : {date, content, templateId, context, errors}
 - Authentication: Required.
 - Response fields:
   - projects: array of { id, nameWithNamespace, webUrl, defaultBranch, enabled, alias }.
-
-**Updated** Enhanced project management with alias support and improved response structure.
 
 **Section sources**
 - [app/api/gitlab/projects/route.ts](file://app/api/gitlab/projects/route.ts)
@@ -368,8 +387,6 @@ API-->>Client : {date, content, templateId, context, errors}
   - alias: string|null, optional.
 - Response: { project: updated }.
 - Notes: Only updates projects owned by the current user.
-
-**Updated** Enhanced project management with alias support and improved validation.
 
 **Section sources**
 - [app/api/gitlab/projects/route.ts](file://app/api/gitlab/projects/route.ts)
@@ -389,8 +406,6 @@ API-->>Client : {date, content, templateId, context, errors}
   - When adding single project, validates project existence and upserts into database.
   - Projects are initially disabled when added individually.
 
-**Updated** Enhanced project management with bulk refresh capability and improved validation.
-
 **Section sources**
 - [app/api/gitlab/projects/route.ts](file://app/api/gitlab/projects/route.ts)
 
@@ -401,8 +416,6 @@ API-->>Client : {date, content, templateId, context, errors}
   - id: string (required).
 - Response: { ok: true }.
 - Notes: Only deletes projects owned by the current user.
-
-**Updated** Added project deletion endpoint for cleanup operations.
 
 **Section sources**
 - [app/api/gitlab/projects/route.ts](file://app/api/gitlab/projects/route.ts)
@@ -457,6 +470,58 @@ API-->>Client : {date, content, templateId, context, errors}
 
 **Section sources**
 - [app/api/admin/team-reports/route.ts](file://app/api/admin/team-reports/route.ts)
+
+#### GET /api/admin/team-reports/range
+- Description: Fetch team submission heatmaps for a date range (admin-only).
+- Authentication: ADMIN required.
+- Query parameters:
+  - startDate: YYYY-MM-DD (required).
+  - endDate: YYYY-MM-DD (required).
+- Validation:
+  - Date format validation: YYYY-MM-DD required.
+  - startDate must be before or equal to endDate.
+  - Maximum range: 92 days.
+- Response fields:
+  - days: array of date strings in the range.
+  - rows: array of { user, submitted } where submitted is an array of dates when reports were submitted.
+- Error handling:
+  - Returns 400 for bad date format or invalid range.
+  - Returns 403 Forbidden for non-admin access.
+- Notes:
+  - Used by team overview dashboard for submission heatmaps.
+  - Maximum 92-day range prevents excessive data loads.
+
+**New** Added comprehensive team reports range endpoint for team submission heatmaps and calendar-style visualization.
+
+**Section sources**
+- [app/api/admin/team-reports/range/route.ts](file://app/api/admin/team-reports/range/route.ts)
+
+#### GET /api/admin/stats/team
+- Description: Fetch aggregated team statistics for a date range (admin-only).
+- Authentication: ADMIN required.
+- Query parameters:
+  - startDate: YYYY-MM-DD (required).
+  - endDate: YYYY-MM-DD (required).
+- Validation:
+  - Date format validation: YYYY-MM-DD required.
+  - startDate must be before or equal to endDate.
+- Response fields:
+  - total: number (total commits across all team members).
+  - breakdown: object (aggregate commit counts by type: feat, fix, refactor, docs, style, test, chore, perf, ci, build, other).
+  - byUser: array of { user, total, breakdown } sorted by total commits descending.
+- Error handling:
+  - Returns 400 for bad date format or invalid range.
+  - Returns 403 Forbidden for non-admin access.
+- Notes:
+  - Aggregates statistics across all team members.
+  - Individual project statistics are not returned; only aggregate totals.
+  - Failed user statistics are skipped gracefully.
+
+**New** Added comprehensive team statistics endpoint for aggregated commit analytics and member ranking.
+
+**Section sources**
+- [app/api/admin/stats/team/route.ts](file://app/api/admin/stats/team/route.ts)
+- [lib/stats.ts](file://lib/stats.ts)
 
 #### GET /api/admin/users
 - Description: List all users (admin-only).
@@ -520,6 +585,8 @@ SESSION --> ROUTE_GITLAB_VALIDATE["app/api/gitlab/validate-token/route.ts"]
 SESSION --> ROUTE_AI["app/api/ai/polish/route.ts"]
 SESSION --> ROUTE_ADMIN_USERS["app/api/admin/users/route.ts"]
 SESSION --> ROUTE_ADMIN_TEAM["app/api/admin/team-reports/route.ts"]
+SESSION --> ROUTE_ADMIN_TEAM_RANGE["app/api/admin/team-reports/range/route.ts"]
+SESSION --> ROUTE_ADMIN_TEAM_STATS["app/api/admin/stats/team/route.ts"]
 AUTH["lib/auth.ts"] --> ROUTE_AUTH["app/api/auth[...nextauth]/route.ts"]
 MWARE["middleware.ts"] --> ROUTE_AUTH
 MWARE --> ROUTE_ME
@@ -533,12 +600,16 @@ MWARE --> ROUTE_GITLAB_VALIDATE
 MWARE --> ROUTE_AI
 MWARE --> ROUTE_ADMIN_USERS
 MWARE --> ROUTE_ADMIN_TEAM
+MWARE --> ROUTE_ADMIN_TEAM_RANGE
+MWARE --> ROUTE_ADMIN_TEAM_STATS
 GITLAB["lib/gitlab.ts"] --> ROUTE_REPORTS_GEN
 GITLAB --> ROUTE_STATS_COMMITS
 GITLAB --> ROUTE_GITLAB_VALIDATE
 REPORT["lib/report.ts"] --> ROUTE_REPORTS_GEN
 REPORT --> ROUTE_STATS_COMMITS
 REPORT --> ROUTE_TEMPLATES_PREVIEW
+STATS["lib/stats.ts"] --> ROUTE_STATS_COMMITS
+STATS --> ROUTE_ADMIN_TEAM_STATS
 PRISMA["Prisma ORM"] --> ROUTE_ME
 PRISMA --> ROUTE_REPORTS
 PRISMA --> ROUTE_REPORTS_GEN
@@ -549,6 +620,8 @@ PRISMA --> ROUTE_GITLAB_PROJ
 PRISMA --> ROUTE_GITLAB_VALIDATE
 PRISMA --> ROUTE_ADMIN_USERS
 PRISMA --> ROUTE_ADMIN_TEAM
+PRISMA --> ROUTE_ADMIN_TEAM_RANGE
+PRISMA --> ROUTE_ADMIN_TEAM_STATS
 ```
 
 **Diagram sources**
@@ -557,6 +630,7 @@ PRISMA --> ROUTE_ADMIN_TEAM
 - [middleware.ts](file://middleware.ts)
 - [lib/gitlab.ts](file://lib/gitlab.ts)
 - [lib/report.ts](file://lib/report.ts)
+- [lib/stats.ts](file://lib/stats.ts)
 - [app/api/me/route.ts](file://app/api/me/route.ts)
 - [app/api/reports/route.ts](file://app/api/reports/route.ts)
 - [app/api/reports/generate/route.ts](file://app/api/reports/generate/route.ts)
@@ -568,6 +642,8 @@ PRISMA --> ROUTE_ADMIN_TEAM
 - [app/api/ai/polish/route.ts](file://app/api/ai/polish/route.ts)
 - [app/api/admin/users/route.ts](file://app/api/admin/users/route.ts)
 - [app/api/admin/team-reports/route.ts](file://app/api/admin/team-reports/route.ts)
+- [app/api/admin/team-reports/range/route.ts](file://app/api/admin/team-reports/range/route.ts)
+- [app/api/admin/stats/team/route.ts](file://app/api/admin/stats/team/route.ts)
 
 **Section sources**
 - [lib/session.ts](file://lib/session.ts)
@@ -575,6 +651,7 @@ PRISMA --> ROUTE_ADMIN_TEAM
 - [middleware.ts](file://middleware.ts)
 - [lib/gitlab.ts](file://lib/gitlab.ts)
 - [lib/report.ts](file://lib/report.ts)
+- [lib/stats.ts](file://lib/stats.ts)
 - [app/api/me/route.ts](file://app/api/me/route.ts)
 - [app/api/reports/route.ts](file://app/api/reports/route.ts)
 - [app/api/reports/generate/route.ts](file://app/api/reports/generate/route.ts)
@@ -586,26 +663,33 @@ PRISMA --> ROUTE_ADMIN_TEAM
 - [app/api/ai/polish/route.ts](file://app/api/ai/polish/route.ts)
 - [app/api/admin/users/route.ts](file://app/api/admin/users/route.ts)
 - [app/api/admin/team-reports/route.ts](file://app/api/admin/team-reports/route.ts)
+- [app/api/admin/team-reports/range/route.ts](file://app/api/admin/team-reports/range/route.ts)
+- [app/api/admin/stats/team/route.ts](file://app/api/admin/stats/team/route.ts)
 
 ## Performance Considerations
 - Rate limiting: Not implemented in code; consider deploying a reverse proxy or platform-level rate limiting in front of the API.
 - Concurrency and retries:
   - GitLab client enforces a 20-second timeout and paginates with safety caps to avoid excessive load.
   - Report generation performs concurrent project commit fetching; ensure GitLab API quotas are considered.
-  - Statistics endpoint processes projects concurrently with error handling for individual project failures.
+  - Statistics endpoint processes projects concurrently with graceful error handling for individual project failures.
+  - Team statistics endpoint processes all users concurrently with individual user failures skipped silently.
 - Caching:
   - Project cache is refreshed during token validation; consider adding CDN or server-side caching for repeated reads.
   - Template preview responses are computed per request; consider caching compiled templates per user/template if needed.
+  - Team statistics are computed on-demand; consider implementing caching for frequently accessed date ranges.
 - Rendering:
   - Template compilation occurs per request; consider caching compiled templates per user/template if needed.
+  - Team reports range endpoint limits maximum 92-day range to prevent excessive data processing.
 
 ## Troubleshooting Guide
 - Authentication failures:
   - 401 Unauthorized: No active session; ensure NextAuth cookies are present.
   - 403 Forbidden: Admin-required endpoint accessed by non-admin user.
+  - 403 Forbidden: Non-admin trying to access another user's statistics via userId parameter.
 - Validation errors:
-  - 400 Bad Request: Malformed date, missing id, invalid field lengths/types.
+  - 400 Bad Request: Malformed date, invalid date range, or exceeded maximum range (92 days).
   - Date format validation: YYYY-MM-DD format required for startDate and endDate parameters.
+  - Range validation: startDate must be before or equal to endDate.
 - GitLab integration:
   - 404 Not Found: Project not found under current user.
   - 502 Bad Gateway: Upstream GitLab or LLM service failure; check baseUrl/token/environment variables.
@@ -614,9 +698,15 @@ PRISMA --> ROUTE_ADMIN_TEAM
 - Statistics endpoint:
   - Individual project failures are handled gracefully; statistics continue processing other projects.
   - Commit categorization handles unknown types as "other" category.
+  - Team statistics gracefully skip failed users and continue processing remaining users.
+- Team reports range endpoint:
+  - Returns 400 for invalid date ranges or exceeding maximum 92-day limit.
+  - Team submission heatmaps are computed efficiently using set-based lookups.
 
 **Section sources**
 - [lib/session.ts](file://lib/session.ts)
+- [app/api/admin/team-reports/range/route.ts](file://app/api/admin/team-reports/range/route.ts)
+- [app/api/admin/stats/team/route.ts](file://app/api/admin/stats/team/route.ts)
 - [app/api/admin/team-reports/route.ts](file://app/api/admin/team-reports/route.ts)
 - [app/api/admin/users/route.ts](file://app/api/admin/users/route.ts)
 - [app/api/gitlab/projects/route.ts](file://app/api/gitlab/projects/route.ts)
@@ -625,7 +715,7 @@ PRISMA --> ROUTE_ADMIN_TEAM
 - [app/api/stats/commits/route.ts](file://app/api/stats/commits/route.ts)
 
 ## Conclusion
-The Pingyun Report API provides a comprehensive set of endpoints for user self-service, admin oversight, GitLab integration, statistics dashboard, template management, and AI-assisted report polishing. Authentication is handled centrally via NextAuth.js with JWT sessions, and strict validation ensures robust request handling. The addition of statistics dashboard and template preview capabilities enhances the platform's analytical and customization features. For production deployments, consider adding rate limiting, monitoring, and secure transport.
+The Pingyun Report API provides a comprehensive set of endpoints for user self-service, admin oversight, GitLab integration, statistics dashboard, template management, and AI-assisted report polishing. Authentication is handled centrally via NextAuth.js with JWT sessions, and strict validation ensures robust request handling. The addition of team statistics endpoints, admin override functionality, and enhanced error handling significantly improves the platform's administrative capabilities and user experience. For production deployments, consider adding rate limiting, monitoring, and secure transport.
 
 ## Appendices
 
@@ -633,6 +723,7 @@ The Pingyun Report API provides a comprehensive set of endpoints for user self-s
 - Authentication method: NextAuth.js credentials provider with JWT session.
 - Authorization roles: MEMBER and ADMIN; admin endpoints guarded by requireAdmin.
 - Session enforcement: requireUser/requireAdmin wrappers and middleware protect routes.
+- Admin override: Admins can access other users' statistics via userId parameter in stats/commits endpoint.
 
 **Section sources**
 - [lib/auth.ts](file://lib/auth.ts)
@@ -643,12 +734,13 @@ The Pingyun Report API provides a comprehensive set of endpoints for user self-s
 Representative request/response shapes and validation rules:
 
 - Reports
-  - GET /api/reports: query params date (YYYY-MM-DD) or month (YYYY-MM); returns reports[] or report.
+  - GET /api/reports: query params date (YYYY-MM-DD) or month (YYYY-MM-DD); returns reports[] or report.
   - POST /api/reports: body { date, content, templateId?, rawCommits? }; returns report.
   - DELETE /api/reports: query param date (YYYY-MM-DD); returns { ok: true }.
 
 - Statistics
-  - GET /api/stats/commits: query params startDate (YYYY-MM-DD) and endDate (YYYY-MM-DD); returns { total, breakdown, byProject }.
+  - GET /api/stats/commits: query params startDate (YYYY-MM-DD), endDate (YYYY-MM-DD), userId (optional); returns { total, breakdown, byProject }.
+  - GET /api/admin/stats/team: query params startDate (YYYY-MM-DD), endDate (YYYY-MM-DD); returns { total, breakdown, byUser }.
 
 - Templates
   - GET /api/templates: returns templates[].
@@ -669,6 +761,7 @@ Representative request/response shapes and validation rules:
 
 - Admin
   - GET /api/admin/team-reports: query param date; returns { date, rows }.
+  - GET /api/admin/team-reports/range: query params startDate, endDate; returns { days, rows }.
   - GET /api/admin/users: returns users[].
   - POST /api/admin/users: body { username, password, displayName, role? }; returns user.
   - PATCH /api/admin/users: body { id, password?, displayName?, role? }; returns user.
@@ -678,37 +771,42 @@ Representative request/response shapes and validation rules:
 - [app/api/reports/route.ts](file://app/api/reports/route.ts)
 - [app/api/reports/generate/route.ts](file://app/api/reports/generate/route.ts)
 - [app/api/stats/commits/route.ts](file://app/api/stats/commits/route.ts)
+- [app/api/admin/stats/team/route.ts](file://app/api/admin/stats/team/route.ts)
 - [app/api/templates/route.ts](file://app/api/templates/route.ts)
 - [app/api/templates/preview/route.ts](file://app/api/templates/preview/route.ts)
 - [app/api/gitlab/projects/route.ts](file://app/api/gitlab/projects/route.ts)
 - [app/api/gitlab/validate-token/route.ts](file://app/api/gitlab/validate-token/route.ts)
 - [app/api/ai/polish/route.ts](file://app/api/ai/polish/route.ts)
 - [app/api/admin/team-reports/route.ts](file://app/api/admin/team-reports/route.ts)
+- [app/api/admin/team-reports/range/route.ts](file://app/api/admin/team-reports/range/route.ts)
 - [app/api/admin/users/route.ts](file://app/api/admin/users/route.ts)
 
 ### Versioning and Stability
 - No explicit API versioning header or URL segment is used in the current implementation.
 - Backward compatibility is not enforced; breaking changes may occur without notice.
 
-### Project Management Features
-- Project alias support: Users can set custom aliases for projects to improve readability.
-- Bulk project operations: Support for refreshing all projects and batch deletion of disabled projects.
-- Enhanced filtering: Projects can be filtered by alias, name, or ID.
-- Improved validation: Better error handling for project operations and validation.
+### Team Statistics Features
+- Team reports range: Calendar-style submission heatmap showing daily report submissions across team members.
+- Team statistics aggregation: Comprehensive commit analytics across all team members with type breakdown and member ranking.
+- Admin override: Administrators can query any team member's statistics via userId parameter.
+- Graceful error handling: Individual user/project failures don't prevent overall statistics generation.
+- Performance optimization: Maximum 92-day range limit prevents excessive data processing.
 
 **Section sources**
-- [app/api/gitlab/projects/route.ts](file://app/api/gitlab/projects/route.ts)
-- [components/projects-manager.tsx](file://components/projects-manager.tsx)
-- [prisma/schema.prisma](file://prisma/schema.prisma)
-
-### Statistics Dashboard Features
-- Commit categorization: Automatic classification of commits into predefined categories.
-- Type breakdown: Detailed statistics for feat, fix, refactor, docs, style, test, chore, perf, ci, build, and other types.
-- Project-level analysis: Per-project commit distribution and type breakdown.
-- Date range filtering: Flexible date range selection for historical analysis.
-- Graceful error handling: Individual project failures don't prevent overall statistics generation.
-
-**Section sources**
+- [app/api/admin/team-reports/range/route.ts](file://app/api/admin/team-reports/range/route.ts)
+- [app/api/admin/stats/team/route.ts](file://app/api/admin/stats/team/route.ts)
 - [app/api/stats/commits/route.ts](file://app/api/stats/commits/route.ts)
-- [components/stats-view.tsx](file://components/stats-view.tsx)
-- [lib/report.ts](file://lib/report.ts)
+- [components/team/overview-tab.tsx](file://components/team/overview-tab.tsx)
+- [components/team/member-stats-tab.tsx](file://components/team/member-stats-tab.tsx)
+
+### Enhanced Error Handling
+- Centralized error handling via withErrors wrapper converts thrown errors to standardized JSON responses.
+- Validation errors return 400 with descriptive error messages.
+- Authentication errors return 401 or 403 with standardized error fields.
+- Graceful degradation: Individual project/user failures don't prevent overall endpoint completion.
+
+**Section sources**
+- [lib/session.ts](file://lib/session.ts)
+- [app/api/admin/team-reports/range/route.ts](file://app/api/admin/team-reports/range/route.ts)
+- [app/api/admin/stats/team/route.ts](file://app/api/admin/stats/team/route.ts)
+- [app/api/stats/commits/route.ts](file://app/api/stats/commits/route.ts)
