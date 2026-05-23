@@ -18,16 +18,25 @@
 - [schema.prisma](file://prisma/schema.prisma)
 </cite>
 
+## Update Summary
+**Changes Made**
+- Added comprehensive top contributors leaderboard system with three ranking categories
+- Enhanced responsive design with modern grid layouts and mobile-first approach
+- Integrated visual ranking indicators with gold/silver/bronze styling
+- Improved team statistics dashboard with leaderboard visualization
+
 ## Table of Contents
 1. [Introduction](#introduction)
 2. [Project Structure](#project-structure)
 3. [Core Components](#core-components)
 4. [Architecture Overview](#architecture-overview)
 5. [Detailed Component Analysis](#detailed-component-analysis)
-6. [Dependency Analysis](#dependency-analysis)
-7. [Performance Considerations](#performance-considerations)
-8. [Troubleshooting Guide](#troubleshooting-guide)
-9. [Conclusion](#conclusion)
+6. [Top Contributors Leaderboard System](#top-contributors-leaderboard-system)
+7. [Responsive Design Enhancements](#responsive-design-enhancements)
+8. [Dependency Analysis](#dependency-analysis)
+9. [Performance Considerations](#performance-considerations)
+10. [Troubleshooting Guide](#troubleshooting-guide)
+11. [Conclusion](#conclusion)
 
 ## Introduction
 This document explains the Team Member Statistics feature, which provides administrators with three primary capabilities:
@@ -35,7 +44,9 @@ This document explains the Team Member Statistics feature, which provides admini
 - Team-wide daily report submission heatmaps and aggregated statistics
 - Daily report review and approval workflows
 
-The system integrates with GitLab via server-side APIs, computes conventional commit categories, and presents structured statistics with project-level breakdowns.
+**Updated** Added comprehensive top contributors leaderboard system with three ranking categories (Submission Star, Feature Star, Bug Fix Star) and responsive design enhancements to the team statistics dashboard.
+
+The system integrates with GitLab via server-side APIs, computes conventional commit categories, and presents structured statistics with project-level breakdowns. The leaderboard system now provides visual recognition of top contributors across different contribution metrics.
 
 ## Project Structure
 The Team Member Statistics feature spans frontend React components, Next.js API routes, and backend libraries for data computation and GitLab integration.
@@ -49,6 +60,7 @@ RT["ReportsTab<br/>components/team/reports-tab.tsx"]
 OT["OverviewTab<br/>components/team/overview-tab.tsx"]
 SC["StatsContent<br/>components/stats-content.tsx"]
 MF["MemberFilterBar<br/>components/team/member-filter.tsx"]
+TL["TopContributors<br/>components/team/overview-tab.tsx"]
 end
 subgraph "Next.js API Routes"
 AC["/api/stats/commits<br/>app/api/stats/commits/route.ts"]
@@ -69,6 +81,7 @@ TR --> OT
 MST --> AC
 OT --> ATS
 OT --> AR
+OT --> TL
 AC --> ST
 ATS --> ST
 ST --> RP
@@ -82,7 +95,7 @@ AR --> PRISMA
 - [team-reports.tsx:1-70](file://components/team-reports.tsx#L1-L70)
 - [member-stats-tab.tsx:1-241](file://components/team/member-stats-tab.tsx#L1-L241)
 - [reports-tab.tsx:1-183](file://components/team/reports-tab.tsx#L1-L183)
-- [overview-tab.tsx:1-310](file://components/team/overview-tab.tsx#L1-L310)
+- [overview-tab.tsx:1-398](file://components/team/overview-tab.tsx#L1-L398)
 - [stats-content.tsx:1-225](file://components/stats-content.tsx#L1-L225)
 - [member-filter.tsx:1-60](file://components/team/member-filter.tsx#L1-L60)
 - [route.ts:1-54](file://app/api/stats/commits/route.ts#L1-L54)
@@ -101,23 +114,26 @@ AR --> PRISMA
 - TeamReports container manages tab navigation among "Daily Reports", "Member Statistics", and "Team Overview".
 - MemberStatsTab enables administrators to select a team member and view their commit statistics for a chosen date range.
 - ReportsTab displays daily report submissions per member for a selected date.
-- OverviewTab shows team-wide submission heatmaps and aggregated commit statistics across a date range.
+- OverviewTab shows team-wide submission heatmaps, aggregated commit statistics, and the new top contributors leaderboard.
 - StatsContent renders detailed type distributions and per-project commit breakdowns.
 - MemberFilterBar provides search and role-based filtering for member lists.
+- TopContributors component displays the three leaderboard categories with visual ranking indicators.
 - API routes handle authentication, authorization, and data retrieval for statistics and reports.
 - Backend libraries compute commit statistics, filter and categorize commits, and interact with GitLab.
+
+**Updated** Added TopContributors component that generates three distinct leaderboards: Submission Star (total commits), Feature Star (feature contributions), and Bug Fix Star (bug fixes).
 
 **Section sources**
 - [team-reports.tsx:1-70](file://components/team-reports.tsx#L1-L70)
 - [member-stats-tab.tsx:1-241](file://components/team/member-stats-tab.tsx#L1-L241)
 - [reports-tab.tsx:1-183](file://components/team/reports-tab.tsx#L1-L183)
-- [overview-tab.tsx:1-310](file://components/team/overview-tab.tsx#L1-L310)
+- [overview-tab.tsx:1-398](file://components/team/overview-tab.tsx#L1-L398)
 - [stats-content.tsx:1-225](file://components/stats-content.tsx#L1-L225)
 - [member-filter.tsx:1-60](file://components/team/member-filter.tsx#L1-L60)
 
 ## Architecture Overview
 The system follows a layered architecture:
-- Presentation layer: Next.js App Router pages and client components
+- Presentation layer: Next.js App Router pages and client components with responsive design
 - API layer: Next.js route handlers under app/api
 - Domain layer: Business logic in lib/stats.ts and lib/report.ts
 - Data access: Prisma ORM queries against MySQL
@@ -185,6 +201,7 @@ The OverviewTab component provides:
 - Team-wide daily report submission heatmap
 - Aggregate commit statistics across all members
 - Member ranking by total commits and categorized counts
+- **New** Top contributors leaderboard with three categories
 
 ```mermaid
 sequenceDiagram
@@ -197,7 +214,8 @@ UI->>API1 : Fetch heatmap data
 UI->>API2 : Fetch team stats
 API1-->>UI : {days, rows}
 API2-->>UI : {total, breakdown, byUser}
-UI-->>Admin : Render heatmap and aggregate table
+UI->>UI : Generate TopContributors leaderboard
+UI-->>Admin : Render heatmap, aggregate table, and leaderboard
 ```
 
 **Diagram sources**
@@ -206,7 +224,7 @@ UI-->>Admin : Render heatmap and aggregate table
 - [route.ts:13-75](file://app/api/admin/stats/team/route.ts#L13-L75)
 
 **Section sources**
-- [overview-tab.tsx:1-310](file://components/team/overview-tab.tsx#L1-L310)
+- [overview-tab.tsx:1-398](file://components/team/overview-tab.tsx#L1-L398)
 - [route.ts:1-70](file://app/api/admin/team-reports/range/route.ts#L1-L70)
 - [route.ts:1-76](file://app/api/admin/stats/team/route.ts#L1-L76)
 
@@ -268,6 +286,78 @@ Sort --> Return(["Return {total, breakdown, byProject}"])
 - [report.ts:1-159](file://lib/report.ts#L1-L159)
 - [gitlab.ts:1-172](file://lib/gitlab.ts#L1-L172)
 
+## Top Contributors Leaderboard System
+
+**New Section** The OverviewTab now includes a comprehensive top contributors leaderboard system that displays three distinct ranking categories with visual indicators.
+
+### Leaderboard Categories
+The system generates three separate leaderboards:
+
+1. **提交之星 (Submission Star)** - Top contributors by total commit count
+2. **功能之星 (Feature Star)** - Top contributors by feature/development contributions  
+3. **修复之星 (Bug Fix Star)** - Top contributors by bug fix contributions
+
+### Visual Ranking Indicators
+Each leaderboard displays the top 3 contributors with distinctive visual styling:
+- **Gold circle** (#FFD700) for 1st place
+- **Silver circle** (#C0C0C0) for 2nd place  
+- **Bronze circle** (#CD7F32) for 3rd place
+- **Gray circle** (#6B7280) for 4th+ place
+
+### Implementation Details
+The leaderboard is generated by the TopContributors component which:
+- Sorts users by each category's metric in descending order
+- Limits results to top 3 contributors per category
+- Filters out users with zero contributions for that specific category
+- Displays contributor name, username, and their score
+
+```mermaid
+flowchart TD
+Start(["Aggregate byUser data"]) --> Category1["Create Submission Star<br/>Sort by total desc"]
+Category1 --> Category2["Create Feature Star<br/>Sort by feat desc"]
+Category2 --> Category3["Create Bug Fix Star<br/>Sort by fix desc"]
+Category3 --> Filter["Filter out zeros<br/>Limit to top 3"]
+Filter --> Render["Render with visual indicators"]
+Render --> End(["Display leaderboard"])
+```
+
+**Diagram sources**
+- [overview-tab.tsx:262-329](file://components/team/overview-tab.tsx#L262-L329)
+
+**Section sources**
+- [overview-tab.tsx:249-329](file://components/team/overview-tab.tsx#L249-L329)
+
+## Responsive Design Enhancements
+
+**New Section** The team statistics dashboard has been enhanced with modern responsive design patterns to provide optimal viewing experience across devices.
+
+### Grid Layout System
+The dashboard uses a progressive grid system:
+- **Mobile (default)**: Single column layout for optimal vertical scrolling
+- **Tablet (md:)**: Two-column layout for better space utilization
+- **Desktop (lg:)**: Two-column layout with side-by-side components
+
+### Component-Specific Responsive Patterns
+- **Member Stats Tab**: `grid md:grid-cols-[280px_1fr]` - Fixed sidebar width on desktop
+- **Leaderboard**: `grid grid-cols-1 md:grid-cols-3` - Three columns on desktop, single on mobile
+- **Heatmap**: Responsive table with horizontal scrolling on small screens
+- **Aggregate Stats**: `grid lg:grid-cols-2` - Two-column layout on larger screens
+
+### Typography and Spacing
+- Consistent use of `text-sm` and `text-xs` for smaller screens
+- Adaptive padding and margins using responsive spacing utilities
+- Mobile-first typography with larger text sizes for better readability
+
+### Interactive Elements
+- Touch-friendly button sizes and spacing
+- Scrollable tables for better mobile experience
+- Collapsible sections for complex data presentation
+
+**Section sources**
+- [member-stats-tab.tsx:87-123](file://components/team/member-stats-tab.tsx#L87-L123)
+- [overview-tab.tsx:128-136](file://components/team/overview-tab.tsx#L128-L136)
+- [overview-tab.tsx:290-329](file://components/team/overview-tab.tsx#L290-L329)
+
 ## Dependency Analysis
 The feature exhibits clear separation of concerns:
 - Frontend components depend on API routes for data
@@ -302,8 +392,7 @@ LIB --> PRISMA
 - Filtering early: Commits are filtered and deduplicated before building detailed structures to minimize downstream processing.
 - Caching: Responses are intentionally marked as no-store to avoid stale data in long-lived sessions.
 - UI responsiveness: Client components debounce user interactions and show loading states during fetches.
-
-[No sources needed since this section provides general guidance]
+- **New** Leaderboard optimization: The TopContributors component processes data client-side with efficient sorting algorithms.
 
 ## Troubleshooting Guide
 Common issues and resolutions:
@@ -312,6 +401,7 @@ Common issues and resolutions:
 - Invalid date range: API routes validate date formats and enforce startDate ≤ endDate; adjust accordingly.
 - Rate limits and timeouts: GitLab API client sets timeouts; retry after a delay if encountering transient errors.
 - No data returned: Verify that projects are enabled for the user and that commits exist within the selected date range.
+- **New** Leaderboard empty states: The system gracefully handles cases where contributors have zero contributions in specific categories.
 
 **Section sources**
 - [route.ts:16-53](file://app/api/stats/commits/route.ts#L16-L53)
@@ -324,5 +414,7 @@ The Team Member Statistics feature provides a comprehensive toolkit for administ
 - Individual commit statistics with conventional commit categorization
 - Team-wide submission heatmaps and aggregate rankings
 - Daily report review and filtering
+- **New** Top contributors leaderboard system with visual recognition
+- **New** Responsive design for optimal mobile and desktop experiences
 
-The modular architecture ensures maintainability, while server-side GitLab integration and robust filtering deliver accurate insights across multiple projects and timeframes.
+The modular architecture ensures maintainability, while server-side GitLab integration and robust filtering deliver accurate insights across multiple projects and timeframes. The addition of the leaderboard system enhances team motivation and recognition by highlighting outstanding contributions across different categories of work.
