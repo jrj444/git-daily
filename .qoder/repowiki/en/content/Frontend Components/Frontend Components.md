@@ -10,6 +10,7 @@
 - [nav.tsx](file://components/nav.tsx)
 - [report-editor.tsx](file://components/report-editor.tsx)
 - [history-view.tsx](file://components/history-view.tsx)
+- [history/page.tsx](file://app/history/page.tsx)
 - [settings-form.tsx](file://components/settings-form.tsx)
 - [team-reports.tsx](file://components/team-reports.tsx)
 - [users-admin.tsx](file://components/users-admin.tsx)
@@ -24,6 +25,7 @@
 - [gitlab/projects/route.ts](file://app/api/gitlab/projects/route.ts)
 - [templates/route.ts](file://app/api/templates/route.ts)
 - [templates/preview/route.ts](file://app/api/templates/preview/route.ts)
+- [reports/route.ts](file://app/api/reports/route.ts)
 - [auth.ts](file://lib/auth.ts)
 - [session.ts](file://lib/session.ts)
 - [utils.ts](file://lib/utils.ts)
@@ -34,12 +36,10 @@
 
 ## Update Summary
 **Changes Made**
-- Added comprehensive dark mode theming system with next-themes integration
-- Implemented CSS custom properties (--card, --muted-foreground) for semantic theming
-- Enhanced styling architecture with semantic Tailwind classes replacing hardcoded colors
-- Added ThemeToggle component with three-state switching (light → dark → system)
-- Integrated theme system into all domain components for consistent theming
-- Updated navigation with theme toggle button for user-controlled theme switching
+- Enhanced HistoryView component with automatic today's date selection and content loading functionality
+- Improved user experience by eliminating manual date selection steps
+- Added automatic content loading on component mount for better performance
+- Maintained all existing functionality while streamlining the user workflow
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -70,6 +70,7 @@ TRP["Admin Team Reports Page<br/>app/admin/team-reports/page.tsx"]
 SP["Stats Page<br/>app/stats/page.tsx"]
 PP["Projects Page<br/>app/projects/page.tsx"]
 TP["Templates Page<br/>app/templates/page.tsx"]
+HPG["History Page<br/>app/history/page.tsx"]
 end
 subgraph "Components"
 N["Nav<br/>components/nav.tsx"]
@@ -106,6 +107,8 @@ PP --> N
 PP --> PM
 TP --> N
 TP --> TM
+HPG --> N
+HPG --> HV
 N --> TT
 N --> AU
 HP --> SESS
@@ -113,6 +116,7 @@ TRP --> SESS
 SP --> SESS
 PP --> SESS
 TP --> SESS
+HPG --> SESS
 RE --> UT
 HV --> UT
 SF --> UT
@@ -145,9 +149,10 @@ TT --> NT
 - [stats/page.tsx:1-21](file://app/stats/page.tsx#L1-L21)
 - [projects/page.tsx:1-27](file://app/projects/page.tsx#L1-L27)
 - [templates/page.tsx:1-27](file://app/templates/page.tsx#L1-L27)
+- [history/page.tsx:1-21](file://app/history/page.tsx#L1-L21)
 - [nav.tsx:1-176](file://components/nav.tsx#L1-L176)
 - [report-editor.tsx:1-296](file://components/report-editor.tsx#L1-L296)
-- [history-view.tsx:1-221](file://components/history-view.tsx#L1-L221)
+- [history-view.tsx:1-330](file://components/history-view.tsx#L1-L330)
 - [settings-form.tsx:1-368](file://components/settings-form.tsx#L1-L368)
 - [team-reports.tsx:1-127](file://components/team-reports.tsx#L1-L127)
 - [users-admin.tsx:1-187](file://components/users-admin.tsx#L1-L187)
@@ -170,9 +175,10 @@ TT --> NT
 - [stats/page.tsx:1-21](file://app/stats/page.tsx#L1-L21)
 - [projects/page.tsx:1-27](file://app/projects/page.tsx#L1-L27)
 - [templates/page.tsx:1-27](file://app/templates/page.tsx#L1-L27)
+- [history/page.tsx:1-21](file://app/history/page.tsx#L1-L21)
 - [nav.tsx:1-176](file://components/nav.tsx#L1-L176)
 - [report-editor.tsx:1-296](file://components/report-editor.tsx#L1-L296)
-- [history-view.tsx:1-221](file://components/history-view.tsx#L1-L221)
+- [history-view.tsx:1-330](file://components/history-view.tsx#L1-L330)
 - [settings-form.tsx:1-368](file://components/settings-form.tsx#L1-L368)
 - [team-reports.tsx:1-127](file://components/team-reports.tsx#L1-L127)
 - [users-admin.tsx:1-187](file://components/users-admin.tsx#L1-L187)
@@ -191,7 +197,7 @@ TT --> NT
 - Root layout and providers: Sets global styles, toast notifications, theme provider, and wraps children with NextAuth session provider.
 - Navigation: Renders top-level menu items including new Statistics, Projects, and Templates links, admin-only links for ADMIN users, displays current user, and includes ThemeToggle for theme switching.
 - Report Editor: Manages date selection, template selection, project filtering, AI polishing, saving, copying, and live markdown editing with theme-aware editor.
-- History View: Calendar-based navigation to select dates, loads report content, supports inline editing and saving with theme-aware preview.
+- History View: Calendar-based navigation to select dates, automatically loads today's report content on mount, supports inline editing and saving with theme-aware preview.
 - Settings Form: Manages GitLab connection, noise regex filtering, project enablement/default branch, and template CRUD with theme-aware forms.
 - Team Reports (Admin): Lists users and previews their daily reports for a selected date with theme-aware markdown preview.
 - Users Admin (Admin): Creates, updates roles, resets passwords, and deletes users with theme-aware forms.
@@ -205,7 +211,7 @@ TT --> NT
 - [providers.tsx:1-18](file://app/providers.tsx#L1-L18)
 - [nav.tsx:1-176](file://components/nav.tsx#L1-L176)
 - [report-editor.tsx:1-296](file://components/report-editor.tsx#L1-L296)
-- [history-view.tsx:1-221](file://components/history-view.tsx#L1-L221)
+- [history-view.tsx:1-330](file://components/history-view.tsx#L1-L330)
 - [settings-form.tsx:1-368](file://components/settings-form.tsx#L1-L368)
 - [team-reports.tsx:1-127](file://components/team-reports.tsx#L1-L127)
 - [users-admin.tsx:1-187](file://components/users-admin.tsx#L1-L187)
@@ -227,32 +233,32 @@ The frontend architecture centers around:
 sequenceDiagram
 participant Browser as "Browser"
 participant Middleware as "Middleware<br/>middleware.ts"
-participant Page as "Page Component<br/>app/stats/page.tsx"
+participant Page as "History Page<br/>app/history/page.tsx"
 participant Provider as "Providers<br/>app/providers.tsx"
 participant ThemeProvider as "ThemeProvider<br/>next-themes"
 participant Nav as "Nav<br/>components/nav.tsx"
 participant ThemeToggle as "ThemeToggle<br/>components/theme-toggle.ts"
-participant Stats as "StatsView<br/>components/stats-view.tsx"
-Browser->>Middleware : Request protected route "/stats"
+participant History as "HistoryView<br/>components/history-view.tsx"
+Browser->>Middleware : Request protected route "/history"
 Middleware-->>Browser : Allow or redirect to "/login"
 Browser->>Page : Fetch page
 Page->>Page : getSessionUser()
-Page-->>Browser : Render layout + providers + ThemeProvider + Nav + Stats
+Page-->>Browser : Render layout + providers + ThemeProvider + Nav + History
 Provider->>ThemeProvider : Initialize theme provider
 ThemeProvider-->>Browser : Theme context available
 Nav->>ThemeToggle : Render theme toggle button
 ThemeToggle-->>Browser : Three-state theme switching
 Nav-->>Browser : Render menu with Statistics link and theme toggle
-Stats-->>Browser : Load commit statistics via API with theme-aware rendering
+History-->>Browser : Auto-select today's date and load content on mount
 ```
 
 **Diagram sources**
 - [middleware.ts:1-10](file://middleware.ts#L1-L10)
-- [stats/page.tsx:1-21](file://app/stats/page.tsx#L1-L21)
+- [history/page.tsx:1-21](file://app/history/page.tsx#L1-L21)
 - [providers.tsx:1-18](file://app/providers.tsx#L1-L18)
 - [nav.tsx:1-176](file://components/nav.tsx#L1-L176)
 - [theme-toggle.tsx:1-103](file://components/theme-toggle.tsx#L1-L103)
-- [stats-view.tsx:1-258](file://components/stats-view.tsx#L1-L258)
+- [history-view.tsx:158-166](file://components/history-view.tsx#L158-L166)
 
 ## Detailed Component Analysis
 
@@ -294,6 +300,69 @@ ThemeToggle --> End(["Done"])
 **Section sources**
 - [nav.tsx:1-176](file://components/nav.tsx#L1-L176)
 - [utils.ts:1-7](file://lib/utils.ts#L1-L7)
+
+### History View Component
+**Updated** Enhanced with automatic today's date selection and content loading functionality for improved user experience.
+
+- Responsibilities:
+  - Calendar grid for month navigation and day selection.
+  - Automatically select today's date on component mount and load content.
+  - Load monthly summaries, selected day's report, and toggle edit/view modes.
+  - Save edited content and reflect updates.
+  - Theme-aware rendering with proper color mode detection.
+- State management patterns:
+  - Month, selected date (initialized to today), content, editing flag, and saving state.
+  - Derived sets for quick presence checks.
+  - Theme state management with hydration-safe mounting detection.
+  - Automatic content loading via useEffect hook on mount.
+- UX improvements:
+  - **Automatic today's date selection**: `selectedDate` state initialized with today's date (`dayjs().format("YYYY-MM-DD")`) instead of null.
+  - **Automatic content loading**: New useEffect hook automatically loads today's report content when component mounts.
+  - **Streamlined workflow**: Users no longer need to manually click today's date in the calendar.
+  - **Visual indicators**: Today's date is highlighted with a ring border while maintaining selected date distinction.
+  - **Edit/save toggling**: Standard edit/save functionality preserved with theme-aware controls.
+  - **Theme-aware calendar styling**: Proper contrast in both light and dark modes.
+- Lifecycle management:
+  - Initial load triggers automatic content loading for today's date.
+  - Monthly summaries load when month changes.
+  - Content loads when specific dates are selected.
+  - Hydration-safe theme detection prevents SSR mismatches.
+
+```mermaid
+sequenceDiagram
+participant C as "Caller"
+participant H as "HistoryView"
+participant Theme as "Theme System"
+participant API as "API Routes"
+C->>H : Mount component
+H->>Theme : Detect theme mode (light/dark/system)
+Theme-->>H : Resolved theme state
+H->>H : Initialize selectedDate = today's date
+H->>API : GET /api/reports?date=today
+API-->>H : Today's report content (auto-loaded)
+H->>H : Render calendar with today selected
+C->>H : User clicks a date
+H->>API : GET /api/reports?date=selectedDate
+API-->>H : Selected date report content
+H-->>C : Render content with theme-aware styling
+C->>H : Click Edit
+H-->>C : Enter edit mode with live preview
+C->>H : Click Save
+H->>API : POST /api/reports
+API-->>H : Saved confirmation
+H-->>C : Toast success + reload month
+```
+
+**Diagram sources**
+- [history-view.tsx:18-21](file://components/history-view.tsx#L18-L21)
+- [history-view.tsx:158-166](file://components/history-view.tsx#L158-L166)
+- [history-view.tsx:64-70](file://components/history-view.tsx#L64-L70)
+- [reports/route.ts:19-27](file://app/api/reports/route.ts#L19-L27)
+
+**Section sources**
+- [history-view.tsx:1-330](file://components/history-view.tsx#L1-L330)
+- [history/page.tsx:1-21](file://app/history/page.tsx#L1-L21)
+- [reports/route.ts:1-L1-L95:1-95](file://app/api/reports/route.ts#L1-L95)
 
 ### Stats View Component
 - Responsibilities:
@@ -504,43 +573,6 @@ E-->>C : Toast success
 
 **Section sources**
 - [report-editor.tsx:1-296](file://components/report-editor.tsx#L1-L296)
-
-### History View Component
-- Responsibilities:
-  - Calendar grid for month navigation and day selection.
-  - Load monthly summaries, selected day's report, and toggle edit/view modes.
-  - Save edited content and reflect updates.
-  - Theme-aware rendering with proper color mode detection.
-- State management:
-  - Month, selected date, content, editing flag, and saving state.
-  - Derived sets for quick presence checks.
-  - Theme state management with hydration-safe mounting detection.
-- UX:
-  - Visual indicators for selected day, presence of reports, and today.
-  - Edit/save toggling with appropriate controls.
-  - Theme-aware calendar styling with proper contrast in both modes.
-  - Semantic color classes ensure consistent theming across interactive elements.
-
-```mermaid
-flowchart TD
-Init(["Init"]) --> LoadMonth["Load monthly summaries"]
-LoadMonth --> SelectDay["Select a date"]
-SelectDay --> LoadDay["Load report for selected date"]
-LoadDay --> Mode{"Edit?"}
-Mode --> |No| Preview["Show Markdown preview with theme-aware styling"]
-Mode --> |Yes| Edit["Render editor with live preview (theme-aware)"]
-Edit --> Save["Save report"]
-Save --> Reload["Reload month to update badges"]
-Preview --> End(["Done"])
-Reload --> End
-```
-
-**Diagram sources**
-- [history-view.tsx:13-86](file://components/history-view.tsx#L13-L86)
-- [history-view.tsx:88-207](file://components/history-view.tsx#L88-L207)
-
-**Section sources**
-- [history-view.tsx:1-221](file://components/history-view.tsx#L1-L221)
 
 ### Settings Form Component
 - Responsibilities:
@@ -776,12 +808,13 @@ SP["app/stats/page.tsx"] --> N["components/nav.tsx"]
 SP --> SV["components/stats-view.tsx"]
 PP["app/projects/page.tsx"] --> PM["components/projects-manager.tsx"]
 TP["app/templates/page.tsx"] --> TM["components/templates-manager.tsx"]
+HPG["app/history/page.tsx"] --> HV["components/history-view.tsx"]
 Nav --> TT["components/theme-toggle.tsx"]
 Nav --> Auth["lib/auth.ts"]
 RE --> MD["@uiw/react-md-editor"]
-HV["components/history-view.tsx"] --> MD
+HV --> MD
 SF["components/settings-form.tsx"] --> TW["tailwind.config.ts"]
-TR["components/team-reports.tsx"] --> TW
+TR --> TW
 UA["components/users-admin.tsx"] --> TW
 RE --> TW
 HV --> TW
@@ -795,6 +828,7 @@ SV --> API1["app/api/stats/commits/route.ts"]
 PM --> API2["app/api/gitlab/projects/route.ts"]
 TM --> API3["app/api/templates/route.ts"]
 TM --> API4["app/api/templates/preview/route.ts"]
+HV --> API5["app/api/reports/route.ts"]
 RE --> UT["lib/utils.ts"]
 HV --> UT
 SF --> UT
@@ -812,9 +846,10 @@ TT --> NT["next-themes"]
 - [stats/page.tsx:1-21](file://app/stats/page.tsx#L1-L21)
 - [projects/page.tsx:1-27](file://app/projects/page.tsx#L1-L27)
 - [templates/page.tsx:1-27](file://app/templates/page.tsx#L1-L27)
+- [history/page.tsx:1-21](file://app/history/page.tsx#L1-L21)
 - [nav.tsx:1-176](file://components/nav.tsx#L1-L176)
 - [report-editor.tsx:1-296](file://components/report-editor.tsx#L1-L296)
-- [history-view.tsx:1-221](file://components/history-view.tsx#L1-L221)
+- [history-view.tsx:1-330](file://components/history-view.tsx#L1-L330)
 - [settings-form.tsx:1-368](file://components/settings-form.tsx#L1-L368)
 - [team-reports.tsx:1-127](file://components/team-reports.tsx#L1-L127)
 - [users-admin.tsx:1-187](file://components/users-admin.tsx#L1-L187)
@@ -830,6 +865,7 @@ TT --> NT["next-themes"]
 - [gitlab/projects/route.ts:1-163](file://app/api/gitlab/projects/route.ts#L1-L163)
 - [templates/route.ts:1-96](file://app/api/templates/route.ts#L1-L96)
 - [templates/preview/route.ts:1-62](file://app/api/templates/preview/route.ts#L1-L62)
+- [reports/route.ts:1-95](file://app/api/reports/route.ts#L1-L95)
 - [package.json:25](file://package.json#L25)
 
 **Section sources**
@@ -838,9 +874,10 @@ TT --> NT["next-themes"]
 - [stats/page.tsx:1-21](file://app/stats/page.tsx#L1-L21)
 - [projects/page.tsx:1-27](file://app/projects/page.tsx#L1-L27)
 - [templates/page.tsx:1-27](file://app/templates/page.tsx#L1-L27)
+- [history/page.tsx:1-21](file://app/history/page.tsx#L1-L21)
 - [nav.tsx:1-176](file://components/nav.tsx#L1-L176)
 - [report-editor.tsx:1-296](file://components/report-editor.tsx#L1-L296)
-- [history-view.tsx:1-221](file://components/history-view.tsx#L1-L221)
+- [history-view.tsx:1-330](file://components/history-view.tsx#L1-L330)
 - [settings-form.tsx:1-368](file://components/settings-form.tsx#L1-L368)
 - [team-reports.tsx:1-127](file://components/team-reports.tsx#L1-L127)
 - [users-admin.tsx:1-187](file://components/users-admin.tsx#L1-L187)
@@ -856,6 +893,7 @@ TT --> NT["next-themes"]
 - [gitlab/projects/route.ts:1-163](file://app/api/gitlab/projects/route.ts#L1-L163)
 - [templates/route.ts:1-96](file://app/api/templates/route.ts#L1-L96)
 - [templates/preview/route.ts:1-62](file://app/api/templates/preview/route.ts#L1-L62)
+- [reports/route.ts:1-95](file://app/api/reports/route.ts#L1-L95)
 - [package.json:25](file://package.json#L25)
 
 ## Performance Considerations
@@ -863,6 +901,7 @@ TT --> NT["next-themes"]
   - Markdown editor is loaded dynamically to reduce initial bundle size.
   - Heavy components like StatsView, ProjectsManager, and TemplatesManager are client-only.
   - ThemeToggle uses hydration-safe mounting to prevent SSR mismatches.
+  - **Enhanced**: HistoryView benefits from automatic content loading optimization.
 - State stability:
   - useCallback used for event handlers and callbacks to prevent unnecessary re-renders.
   - useMemo used for derived data (e.g., enabled projects, filtered projects).
@@ -871,6 +910,7 @@ TT --> NT["next-themes"]
   - Parallel loading for templates and projects.
   - Disabled controls during async operations to avoid redundant requests.
   - Batch operations with Promise.allSettled for reliable bulk updates.
+  - **Enhanced**: Automatic content loading reduces manual API calls.
 - Rendering:
   - Conditional rendering for admin-only sections reduces DOM size for members.
   - Grid layouts and virtualization-like techniques (limited by fixed sizes) keep lists manageable.
@@ -895,9 +935,11 @@ TT --> NT["next-themes"]
   - For StatsView, ensure GitLab credentials are configured before querying statistics.
   - For ProjectsManager, verify GitLab project access permissions.
   - For TemplatesManager, check Handlebars syntax validity during preview.
+  - **Enhanced**: For HistoryView, verify automatic content loading works correctly.
 - State synchronization:
   - After save/edit operations, refresh lists or summaries to reflect updates (e.g., reload month after save).
   - For bulk operations, monitor Promise.allSettled results for individual operation outcomes.
+  - **Enhanced**: HistoryView state management handles automatic date selection and content loading.
 - Styling and responsiveness:
   - Confirm Tailwind content paths include app and components directories.
   - Use responsive utilities consistently (e.g., grid columns) and test across screen sizes.
@@ -908,12 +950,14 @@ TT --> NT["next-themes"]
   - Ensure ThemeProvider wraps the application correctly.
   - Test theme switching functionality across different browsers and devices.
   - Verify semantic color classes are used consistently throughout components.
+  - **Enhanced**: HistoryView theme integration works seamlessly with automatic content loading.
 
 **Section sources**
 - [middleware.ts:1-10](file://middleware.ts#L1-L10)
 - [session.ts:11-37](file://lib/session.ts#L11-L37)
 - [report-editor.tsx:67-91](file://components/report-editor.tsx#L67-L91)
 - [history-view.tsx:53-73](file://components/history-view.tsx#L53-L73)
+- [history-view.tsx:158-166](file://components/history-view.tsx#L158-L166)
 - [stats-view.tsx:51-74](file://components/stats-view.tsx#L51-L74)
 - [projects-manager.tsx:26-35](file://components/projects-manager.tsx#L26-L35)
 - [templates-manager.tsx:162-194](file://components/templates-manager.tsx#L162-L194)
@@ -923,7 +967,11 @@ TT --> NT["next-themes"]
 - [providers.tsx:8-12](file://app/providers.tsx#L8-L12)
 
 ## Conclusion
-The Pingyun Report frontend is structured around a clean layout and providers layer with comprehensive dark mode theming system, robust client-side components for editing, history, settings, admin views, statistics, project management, and template management. The theming system provides seamless light/dark mode switching with semantic color management, ensuring consistent user experience across all components. Authentication is enforced via NextAuth and middleware, while Tailwind CSS with CSS custom properties and next-themes integration streamline styling and composition. The components emphasize user experience with live previews, clear feedback, responsive layouts, and proper accessibility support, all enhanced by the comprehensive theming system. The addition of StatsView, ProjectsManager, TemplatesManager, and the dark mode theming system significantly enhances the system's capabilities for comprehensive development workflow management with modern, accessible, and maintainable frontend architecture.
+The Pingyun Report frontend is structured around a clean layout and providers layer with comprehensive dark mode theming system, robust client-side components for editing, history, settings, admin views, statistics, project management, and template management. The theming system provides seamless light/dark mode switching with semantic color management, ensuring consistent user experience across all components. Authentication is enforced via NextAuth and middleware, while Tailwind CSS with CSS custom properties and next-themes integration streamline styling and composition. The components emphasize user experience with live previews, clear feedback, responsive layouts, and proper accessibility support, all enhanced by the comprehensive theming system. 
+
+**Recent Enhancement**: The HistoryView component has been significantly improved with automatic today's date selection and content loading functionality, providing users with a streamlined workflow that eliminates manual date selection steps. This enhancement maintains all existing functionality while dramatically improving the user experience for daily report access and editing.
+
+The addition of StatsView, ProjectsManager, TemplatesManager, and the dark mode theming system significantly enhances the system's capabilities for comprehensive development workflow management with modern, accessible, and maintainable frontend architecture.
 
 ## Appendices
 
@@ -957,7 +1005,7 @@ The Pingyun Report frontend is structured around a clean layout and providers la
 - [utils.ts:1-7](file://lib/utils.ts#L1-L7)
 - [nav.tsx:20-176](file://components/nav.tsx#L20-L176)
 - [report-editor.tsx:172-296](file://components/report-editor.tsx#L172-L296)
-- [history-view.tsx:89-221](file://components/history-view.tsx#L89-L221)
+- [history-view.tsx:89-330](file://components/history-view.tsx#L89-L330)
 - [settings-form.tsx:193-367](file://components/settings-form.tsx#L193-L367)
 - [team-reports.tsx:43-127](file://components/team-reports.tsx#L43-L127)
 - [users-admin.tsx:89-187](file://components/users-admin.tsx#L89-L187)
@@ -974,6 +1022,7 @@ The Pingyun Report frontend is structured around a clean layout and providers la
   - Use dynamic imports for heavy components (e.g., markdown editor, new domain components) to optimize load.
   - Implement proper route protection for new pages (Statistics, Projects, Templates).
   - Integrate ThemeToggle component into navigation for user-controlled theme switching.
+  - **Enhanced**: HistoryView integrates automatic content loading seamlessly with existing workflow.
 - Customization:
   - Extend templates and project filtering logic in domain components.
   - Add new admin features by following the UsersAdmin pattern (CRUD + confirmations).
@@ -984,6 +1033,7 @@ The Pingyun Report frontend is structured around a clean layout and providers la
   - Customize theming by modifying CSS custom properties in globals.css.
   - Extend theme system by adding new semantic color classes to Tailwind config.
   - Implement additional theme-aware components using useTheme hook pattern.
+  - **Enhanced**: HistoryView enhancement demonstrates best practices for automatic state initialization and content loading.
 
 **Section sources**
 - [providers.tsx:1-18](file://app/providers.tsx#L1-L18)
@@ -992,6 +1042,7 @@ The Pingyun Report frontend is structured around a clean layout and providers la
 - [stats/page.tsx:8-21](file://app/stats/page.tsx#L8-L21)
 - [projects/page.tsx:8-27](file://app/projects/page.tsx#L8-L27)
 - [templates/page.tsx:8-27](file://app/templates/page.tsx#L8-L27)
+- [history/page.tsx:8-21](file://app/history/page.tsx#L8-L21)
 - [report-editor.tsx:9](file://components/report-editor.tsx#L9)
 - [users-admin.tsx:33-87](file://components/users-admin.tsx#L33-L87)
 - [middleware.ts:7-9](file://middleware.ts#L7-L9)
@@ -999,3 +1050,5 @@ The Pingyun Report frontend is structured around a clean layout and providers la
 - [theme-toggle.tsx:1-103](file://components/theme-toggle.tsx#L1-L103)
 - [globals.css:5-27](file://app/globals.css#L5-L27)
 - [tailwind.config.ts:9-22](file://tailwind.config.ts#L9-L22)
+- [history-view.tsx:18-21](file://components/history-view.tsx#L18-L21)
+- [history-view.tsx:158-166](file://components/history-view.tsx#L158-L166)

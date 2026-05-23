@@ -16,6 +16,13 @@
 - [package.json](file://package.json)
 </cite>
 
+## Update Summary
+**Changes Made**
+- Updated HistoryView component documentation to reflect auto-loading functionality for today's date
+- Added documentation for automatic date selection and content loading on component mount
+- Enhanced component lifecycle documentation with new auto-loading behavior
+- Updated state management section to include auto-loading useEffect hook
+
 ## Table of Contents
 1. [Introduction](#introduction)
 2. [Project Structure](#project-structure)
@@ -74,8 +81,8 @@ LAYOUT --> PROVIDERS
 
 **Diagram sources**
 - [report-editor.tsx:1-284](file://components/report-editor.tsx#L1-L284)
-- [history-view.tsx:1-208](file://components/history-view.tsx#L1-L208)
-- [route.ts:1-90](file://app/api/reports/route.ts#L1-L90)
+- [history-view.tsx:1-330](file://components/history-view.tsx#L1-L330)
+- [route.ts:1-95](file://app/api/reports/route.ts#L1-L95)
 - [route.ts:1-133](file://app/api/reports/generate/route.ts#L1-L133)
 - [route.ts:1-63](file://app/api/ai/polish/route.ts#L1-L63)
 - [report.ts:1-159](file://lib/report.ts#L1-L159)
@@ -85,8 +92,8 @@ LAYOUT --> PROVIDERS
 
 **Section sources**
 - [report-editor.tsx:1-284](file://components/report-editor.tsx#L1-L284)
-- [history-view.tsx:1-208](file://components/history-view.tsx#L1-L208)
-- [route.ts:1-90](file://app/api/reports/route.ts#L1-L90)
+- [history-view.tsx:1-330](file://components/history-view.tsx#L1-L330)
+- [route.ts:1-95](file://app/api/reports/route.ts#L1-L95)
 - [route.ts:1-133](file://app/api/reports/generate/route.ts#L1-L133)
 - [route.ts:1-63](file://app/api/ai/polish/route.ts#L1-L63)
 - [report.ts:1-159](file://lib/report.ts#L1-L159)
@@ -98,7 +105,7 @@ LAYOUT --> PROVIDERS
 This section explains the two primary components that implement the report editor UI and history navigation.
 
 - ReportEditor: A self-contained editor with date selection, template selection, project filtering, generation, AI polish, copy, and save operations. It integrates @uiw/react-md-editor for live preview editing.
-- HistoryView: A calendar-based viewer for report history, allowing month navigation, day selection, and inline editing with @uiw/react-md-editor.
+- HistoryView: A calendar-based viewer for report history, allowing month navigation, day selection, and inline editing with @uiw/react-md-editor. **Enhanced with auto-loading functionality for today's date on component mount.**
 
 Key capabilities:
 - Real-time markdown preview via @uiw/react-md-editor with live preview mode
@@ -107,10 +114,11 @@ Key capabilities:
 - AI-powered content polishing via external LLM API
 - Toast-based user feedback for operations and errors
 - Responsive layout with Tailwind CSS utilities
+- **Automatic date selection and content loading for today's date on component mount**
 
 **Section sources**
 - [report-editor.tsx:19-284](file://components/report-editor.tsx#L19-L284)
-- [history-view.tsx:13-208](file://components/history-view.tsx#L13-L208)
+- [history-view.tsx:13-330](file://components/history-view.tsx#L13-L330)
 
 ## Architecture Overview
 The report editor follows a client-side UI component pattern with server-side API endpoints. The UI components manage local state for content, selections, and loading indicators, while API routes handle persistence, generation, and AI operations.
@@ -189,17 +197,26 @@ Implementation highlights:
 - [report-editor.tsx:19-284](file://components/report-editor.tsx#L19-L284)
 
 ### HistoryView Component
-The HistoryView component provides a calendar-based interface for browsing historical reports:
+The HistoryView component provides a calendar-based interface for browsing historical reports with enhanced auto-loading functionality:
 - State management: month navigation, report summaries, selected date, content, edit mode, saving flag
+- **Auto-loading: Automatically selects today's date and loads content on component mount**
 - Calendar grid: generates a month matrix with empty placeholders for padding
 - Actions: load monthly summaries, load daily content, edit/save, copy to clipboard
 - UI composition: sidebar calendar grid, main content area with markdown preview or editor
+
+**Updated** Enhanced with automatic date selection and content loading on component mount for improved user experience
 
 ```mermaid
 sequenceDiagram
 participant User as "User"
 participant HV as "HistoryView"
 participant API as "Reports API"
+User->>HV : Navigate to History Page
+HV->>HV : Initialize selectedDate = today
+HV->>API : GET /api/reports?date=today
+API-->>HV : {report : {content}}
+HV->>HV : Auto-load today's content
+HV->>HV : Update summaries
 User->>HV : Change Month
 HV->>API : GET /api/reports?month=YYYY-MM
 API-->>HV : {reports : [{date, updatedAt}]}
@@ -217,11 +234,13 @@ HV->>HV : Show success, exit edit mode, reload month
 ```
 
 **Diagram sources**
+- [history-view.tsx:18-31](file://components/history-view.tsx#L18-L31)
+- [history-view.tsx:158-166](file://components/history-view.tsx#L158-L166)
 - [history-view.tsx:39-86](file://components/history-view.tsx#L39-L86)
 - [route.ts:9-46](file://app/api/reports/route.ts#L9-L46)
 
 **Section sources**
-- [history-view.tsx:13-208](file://components/history-view.tsx#L13-L208)
+- [history-view.tsx:13-330](file://components/history-view.tsx#L13-L330)
 - [page.tsx:8-20](file://app/history/page.tsx#L8-L20)
 
 ### Markdown Editor Implementation with @uiw/react-md-editor
@@ -245,15 +264,17 @@ Real-time preview functionality:
 
 **Section sources**
 - [report-editor.tsx:273-280](file://components/report-editor.tsx#L273-L280)
-- [history-view.tsx:189-201](file://components/history-view.tsx#L189-L201)
+- [history-view.tsx:310-323](file://components/history-view.tsx#L310-L323)
 
 ### Component State Management
 State management patterns across components:
 - Local state: useState for content, selections, flags, and errors
 - Memoized computations: useMemo for derived data (e.g., enabled projects)
-- Asynchronous operations: useEffect for initialization and data loading
+- **Auto-loading effects: useEffect hooks for initialization and automatic content loading**
 - Controlled components: form controls bound to state via onChange handlers
 - Error handling: toast notifications for user feedback; server-side validation via zod
+
+**Updated** Added auto-loading useEffect hook for automatic content loading on component mount
 
 Validation feedback:
 - Generation errors: displayed as a red banner with project names and error messages
@@ -267,7 +288,7 @@ Save operations:
 
 **Section sources**
 - [report-editor.tsx:29-32](file://components/report-editor.tsx#L29-L32)
-- [history-view.tsx:17-20](file://components/history-view.tsx#L17-L20)
+- [history-view.tsx:17-31](file://components/history-view.tsx#L17-L31)
 - [route.ts:48-76](file://app/api/reports/route.ts#L48-L76)
 
 ### Calendar Integration for Report History Navigation
@@ -275,16 +296,21 @@ Calendar integration in HistoryView:
 - Month navigation: arrow buttons adjust the displayed month
 - Grid generation: computes padded grid for month view with null placeholders
 - Selection logic: clicking a day loads content and toggles edit mode
+- **Auto-selection: Today's date is automatically selected and loaded on component mount**
 - Visual indicators: dots for days with saved reports, today highlighting, and selected day styling
 - Responsive layout: grid layout adapts to medium screens and above
 
+**Updated** Enhanced with automatic date selection for today's date during component initialization
+
 Date selection behavior:
 - Selected date drives content loading and editing
+- **Auto-loading effect ensures today's content is loaded immediately upon component mount**
 - Edit mode allows inline markdown editing with @uiw/react-md-editor
-- Save operations update the selected date’s content
+- Save operations update the selected date's content
 
 **Section sources**
 - [history-view.tsx:14-32](file://components/history-view.tsx#L14-L32)
+- [history-view.tsx:158-166](file://components/history-view.tsx#L158-L166)
 - [history-view.tsx:117-149](file://components/history-view.tsx#L117-L149)
 
 ### Component Composition Patterns, Prop Interfaces, and Event Handling
@@ -301,11 +327,14 @@ Prop interfaces:
 Event handling:
 - Form events: date change, template selection, project toggles
 - Button clicks: generate, save, copy, polish, edit/save
+- **Auto-loading effects: useEffect hooks for automatic initialization**
 - Calendar interactions: month navigation and day selection
+
+**Updated** Added auto-loading effects to component composition patterns
 
 **Section sources**
 - [report-editor.tsx:172-282](file://components/report-editor.tsx#L172-L282)
-- [history-view.tsx:88-207](file://components/history-view.tsx#L88-L207)
+- [history-view.tsx:88-330](file://components/history-view.tsx#L88-L330)
 - [utils.ts:4-6](file://lib/utils.ts#L4-L6)
 
 ### Responsive Design Considerations and Accessibility Features
@@ -323,7 +352,7 @@ Accessibility features:
 
 **Section sources**
 - [report-editor.tsx:172-282](file://components/report-editor.tsx#L172-L282)
-- [history-view.tsx:88-207](file://components/history-view.tsx#L88-L207)
+- [history-view.tsx:88-330](file://components/history-view.tsx#L88-L330)
 
 ### Backend API Integration
 API endpoints and their roles:
@@ -340,7 +369,7 @@ Data models and relationships:
 - Template belongs to User and stores template bodies
 
 **Section sources**
-- [route.ts:9-90](file://app/api/reports/route.ts#L9-L90)
+- [route.ts:9-95](file://app/api/reports/route.ts#L9-L95)
 - [route.ts:23-132](file://app/api/reports/generate/route.ts#L23-L132)
 - [route.ts:10-62](file://app/api/ai/polish/route.ts#L10-L62)
 - [schema.prisma:16-79](file://prisma/schema.prisma#L16-L79)
@@ -350,11 +379,14 @@ Usage examples:
 - ReportEditor: Place within a page to provide a full-featured editor with date selection, template selection, and generation
 - HistoryView: Embed in a dedicated history page to browse and edit past reports
 
+**Updated** Enhanced HistoryView usage with auto-loading functionality
+
 Customization options:
 - Template selection: choose default or custom templates during generation
 - Project filtering: enable/disable projects to include in generation
 - Editor appearance: adjust height and preview mode in @uiw/react-md-editor
 - Toast notifications: configure positions and styles globally in the root layout
+- **Auto-loading behavior: customize initial date selection and auto-loading logic**
 
 Integration with backend:
 - Authentication: NextAuth session provider ensures protected routes
@@ -363,7 +395,7 @@ Integration with backend:
 
 **Section sources**
 - [report-editor.tsx:19-284](file://components/report-editor.tsx#L19-L284)
-- [history-view.tsx:13-208](file://components/history-view.tsx#L13-L208)
+- [history-view.tsx:13-330](file://components/history-view.tsx#L13-L330)
 - [layout.tsx:18-22](file://app/layout.tsx#L18-L22)
 - [providers.tsx:5-7](file://app/providers.tsx#L5-L7)
 
@@ -419,8 +451,7 @@ Optimization strategies for large documents and collaborative editing:
 - Memoization: useMemo for derived data to prevent unnecessary re-renders
 - Image optimization: if markdown includes images, optimize and lazy-load them
 - Minimize reflows: batch state updates and avoid frequent DOM mutations
-
-[No sources needed since this section provides general guidance]
+- **Auto-loading optimization: useEffect hooks with proper dependencies prevent unnecessary API calls during component initialization**
 
 ## Troubleshooting Guide
 Common issues and resolutions:
@@ -430,6 +461,9 @@ Common issues and resolutions:
 - GitLab integration issues: confirm GitLab base URL and token are configured and decrypted correctly
 - LLM API errors: verify LLM_API_BASE, LLM_API_KEY, and LLM_MODEL environment variables are set
 - Toast notifications not appearing: ensure Toaster is rendered in the root layout
+- **Auto-loading issues: verify selectedDate state initialization and useEffect dependencies are correct**
+
+**Updated** Added troubleshooting guidance for auto-loading functionality
 
 **Section sources**
 - [report-editor.tsx:9-9](file://components/report-editor.tsx#L9-L9)
@@ -440,7 +474,9 @@ Common issues and resolutions:
 - [route.ts:14-22](file://app/api/ai/polish/route.ts#L14-L22)
 
 ## Conclusion
-The report editor components provide a robust, user-friendly interface for creating and managing daily reports. They integrate seamlessly with GitLab for content generation, leverage Handlebars for templating, and offer AI-powered content polishing. The components are designed with responsive and accessible UI patterns, and they communicate with well-defined API endpoints backed by Prisma. For production-scale usage, consider implementing collaborative editing features, debounced saves, and caching strategies to enhance performance and user experience.
+The report editor components provide a robust, user-friendly interface for creating and managing daily reports. They integrate seamlessly with GitLab for content generation, leverage Handlebars for templating, and offer AI-powered content polishing. The components are designed with responsive and accessible UI patterns, and they communicate with well-defined API endpoints backed by Prisma. 
+
+**Enhanced** The HistoryView component now features automatic date selection and content loading for today's date, improving user experience by eliminating manual date selection on initial page load. For production-scale usage, consider implementing collaborative editing features, debounced saves, and caching strategies to enhance performance and user experience.
 
 ## Appendices
 - Global setup: Providers wrap the application with NextAuth session management; Toaster provides toast notifications

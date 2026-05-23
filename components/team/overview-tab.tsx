@@ -122,6 +122,10 @@ export function OverviewTab() {
         </div>
       )}
 
+      {agg && agg.byUser.length > 0 && (
+        <TopContributors byUser={agg.byUser} />
+      )}
+
       <div className="grid lg:grid-cols-2 gap-4">
         {/* Heatmap */}
         {heatmap && (
@@ -241,6 +245,90 @@ export function OverviewTab() {
     </div>
   );
 }
+
+/* ---------- Top Contributors Leaderboard ---------- */
+
+const RANK_COLORS = [
+  "bg-yellow-400",           // 1st - gold
+  "bg-gray-300 dark:bg-gray-500", // 2nd - silver
+  "bg-amber-600",            // 3rd - bronze
+];
+
+type LeaderCategory = {
+  title: string;
+  items: { user: AggregateByUser["user"]; value: number }[];
+};
+
+function TopContributors({ byUser }: { byUser: AggregateByUser[] }) {
+  const categories: LeaderCategory[] = [
+    {
+      title: "提交之星",
+      items: [...byUser]
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 3)
+        .filter((r) => r.total > 0)
+        .map((r) => ({ user: r.user, value: r.total })),
+    },
+    {
+      title: "功能之星",
+      items: [...byUser]
+        .sort((a, b) => (b.breakdown.feat || 0) - (a.breakdown.feat || 0))
+        .slice(0, 3)
+        .filter((r) => (r.breakdown.feat || 0) > 0)
+        .map((r) => ({ user: r.user, value: r.breakdown.feat || 0 })),
+    },
+    {
+      title: "修复之星",
+      items: [...byUser]
+        .sort((a, b) => (b.breakdown.fix || 0) - (a.breakdown.fix || 0))
+        .slice(0, 3)
+        .filter((r) => (r.breakdown.fix || 0) > 0)
+        .map((r) => ({ user: r.user, value: r.breakdown.fix || 0 })),
+    },
+  ];
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      {categories.map((cat) => (
+        <div
+          key={cat.title}
+          className="bg-card border border-border rounded-lg p-4"
+        >
+          <h3 className="text-sm font-medium mb-3">{cat.title}</h3>
+          {cat.items.length === 0 ? (
+            <div className="text-xs text-muted-foreground">暂无数据</div>
+          ) : (
+            <ul className="space-y-2">
+              {cat.items.map((item, idx) => (
+                <li key={item.user.id} className="flex items-center gap-2 text-sm">
+                  <span
+                    className={cn(
+                      "w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0",
+                      RANK_COLORS[idx] || "bg-muted"
+                    )}
+                  >
+                    {idx + 1}
+                  </span>
+                  <span className="flex-1 truncate">
+                    {item.user.displayName}
+                    <span className="text-xs text-muted-foreground ml-1">
+                      @{item.user.username}
+                    </span>
+                  </span>
+                  <span className="font-mono text-xs font-semibold">
+                    {item.value}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ---------- Submission Heatmap ---------- */
 
 function SubmissionHeatmap({ data }: { data: Heatmap }) {
   const { days, rows } = data;
