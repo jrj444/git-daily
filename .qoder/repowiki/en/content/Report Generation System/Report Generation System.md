@@ -8,17 +8,27 @@
 - [lib/gitlab.ts](file://lib/gitlab.ts)
 - [lib/crypto.ts](file://lib/crypto.ts)
 - [lib/prisma.ts](file://lib/prisma.ts)
+- [lib/utils.ts](file://lib/utils.ts)
 - [prisma/schema.prisma](file://prisma/schema.prisma)
 - [app/api/reports/generate/route.ts](file://app/api/reports/generate/route.ts)
 - [app/api/reports/route.ts](file://app/api/reports/route.ts)
+- [app/api/reports/export/route.ts](file://app/api/reports/export/route.ts)
 - [app/api/gitlab/projects/route.ts](file://app/api/gitlab/projects/route.ts)
 - [app/api/gitlab/validate-token/route.ts](file://app/api/gitlab/validate-token/route.ts)
 - [app/api/templates/route.ts](file://app/api/templates/route.ts)
 - [app/api/ai/polish/route.ts](file://app/api/ai/polish/route.ts)
 - [app/api/admin/team-reports/route.ts](file://app/api/admin/team-reports/route.ts)
+- [app/history/page.tsx](file://app/history/page.tsx)
 - [components/report-editor.tsx](file://components/report-editor.tsx)
-- [lib/utils.ts](file://lib/utils.ts)
+- [components/history-view.tsx](file://components/history-view.tsx)
 </cite>
+
+## Update Summary
+**Changes Made**
+- Added comprehensive report export functionality with new API endpoint `/api/reports/export`
+- Enhanced frontend export capabilities in `components/history-view.tsx` with date range selection
+- Implemented validation and error handling for export operations
+- Added markdown export generation with proper user feedback
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -33,7 +43,7 @@
 10. [Appendices](#appendices)
 
 ## Introduction
-This document explains the end-to-end report generation system that reads GitLab commits and produces daily reports. It covers the complete workflow from GitLab commit fetching to report rendering, including automated commit aggregation, conventional commit parsing, filtering, server-side GitLab API integration, token encryption, and project configuration management. It also documents the template-based rendering system using Handlebars, the markdown editor with real-time preview, and the report generation API endpoint with request/response formats and error handling. Finally, it includes examples of template syntax, commit filtering patterns, integration with GitLab REST API v4, and performance optimization strategies for large commit histories.
+This document explains the end-to-end report generation system that reads GitLab commits and produces daily reports. It covers the complete workflow from GitLab commit fetching to report rendering, including automated commit aggregation, conventional commit parsing, filtering, server-side GitLab API integration, token encryption, and project configuration management. It also documents the template-based rendering system using Handlebars, the markdown editor with real-time preview, and the report generation API endpoint with request/response formats and error handling. The system now includes comprehensive export functionality for generating consolidated markdown reports across date ranges with proper validation and user feedback.
 
 ## Project Structure
 The system is a Next.js 14 App Router application with TypeScript, using Prisma for MySQL persistence, NextAuth.js for authentication, and Handlebars for templating. The frontend is a React client that communicates with server-side route handlers.
@@ -42,18 +52,21 @@ The system is a Next.js 14 App Router application with TypeScript, using Prisma 
 graph TB
 subgraph "Frontend"
 Editor["ReportEditor (client)<br/>components/report-editor.tsx"]
+History["HistoryView (client)<br/>components/history-view.tsx"]
 end
 subgraph "Server"
-Auth["NextAuth.js<br/>session.ts"]
+Auth["NextAuth.js<br/>lib/session.ts"]
 Crypto["Crypto (AES-256-GCM)<br/>lib/crypto.ts"]
 GitLab["GitLab Client (v4)<br/>lib/gitlab.ts"]
 ReportLib["Report Utils (Handlebars)<br/>lib/report.ts"]
 Prisma["Prisma Client<br/>lib/prisma.ts"]
+Utils["Utility Functions<br/>lib/utils.ts"]
 Schemas["Prisma Schema<br/>prisma/schema.prisma"]
 end
 subgraph "API Routes"
 Gen["GET /api/reports/generate<br/>app/api/reports/generate/route.ts"]
 Reports["Reports CRUD<br/>app/api/reports/route.ts"]
+Export["GET /api/reports/export<br/>app/api/reports/export/route.ts"]
 Templates["Templates CRUD<br/>app/api/templates/route.ts"]
 ProjCfg["Projects Config<br/>app/api/gitlab/projects/route.ts"]
 Validate["Validate Token<br/>app/api/gitlab/validate-token/route.ts"]
@@ -65,9 +78,12 @@ Editor --> Reports
 Editor --> Templates
 Editor --> ProjCfg
 Editor --> AI
+History --> Export
 Gen --> GitLab
 Gen --> ReportLib
 Gen --> Prisma
+Export --> Prisma
+Export --> Utils
 ProjCfg --> Prisma
 Validate --> GitLab
 Validate --> Prisma
@@ -82,8 +98,10 @@ Auth --> Prisma
 
 **Diagram sources**
 - [components/report-editor.tsx:1-284](file://components/report-editor.tsx#L1-L284)
+- [components/history-view.tsx:1-320](file://components/history-view.tsx#L1-L320)
 - [app/api/reports/generate/route.ts:1-133](file://app/api/reports/generate/route.ts#L1-L133)
-- [app/api/reports/route.ts:1-90](file://app/api/reports/route.ts#L1-L90)
+- [app/api/reports/route.ts:1-95](file://app/api/reports/route.ts#L1-L95)
+- [app/api/reports/export/route.ts:1-53](file://app/api/reports/export/route.ts#L1-L53)
 - [app/api/templates/route.ts:1-96](file://app/api/templates/route.ts#L1-L96)
 - [app/api/gitlab/projects/route.ts:1-42](file://app/api/gitlab/projects/route.ts#L1-L42)
 - [app/api/gitlab/validate-token/route.ts:1-81](file://app/api/gitlab/validate-token/route.ts#L1-L81)
@@ -92,6 +110,7 @@ Auth --> Prisma
 - [lib/report.ts:1-159](file://lib/report.ts#L1-L159)
 - [lib/gitlab.ts:1-149](file://lib/gitlab.ts#L1-L149)
 - [lib/crypto.ts:1-46](file://lib/crypto.ts#L1-L46)
+- [lib/utils.ts:1-16](file://lib/utils.ts#L1-L16)
 - [lib/prisma.ts:1-14](file://lib/prisma.ts#L1-L14)
 - [prisma/schema.prisma:1-80](file://prisma/schema.prisma#L1-L80)
 
@@ -112,6 +131,9 @@ Auth --> Prisma
   - Handlebars compilation with default template and error fallback.
 - Frontend editor:
   - Real-time markdown preview, project selection, and AI polish integration.
+- Export functionality:
+  - Date range selection with validation and error handling.
+  - Consolidated markdown export generation with user feedback.
 - Persistence:
   - Users, projects, reports, and templates stored in MySQL via Prisma.
 
@@ -120,34 +142,44 @@ Auth --> Prisma
 - [lib/gitlab.ts:45-149](file://lib/gitlab.ts#L45-L149)
 - [lib/crypto.ts:7-46](file://lib/crypto.ts#L7-L46)
 - [components/report-editor.tsx:19-284](file://components/report-editor.tsx#L19-L284)
+- [components/history-view.tsx:26-152](file://components/history-view.tsx#L26-L152)
 - [prisma/schema.prisma:16-79](file://prisma/schema.prisma#L16-L79)
 
 ## Architecture Overview
 The system orchestrates a client-driven workflow:
 - The client loads configuration (templates and projects), optionally loads an existing report, and triggers generation.
 - The generation endpoint validates the user, resolves GitLab base URL and token, fetches commits per project, builds a report context, renders with a template, and returns content plus any per-project errors.
+- The export endpoint validates date ranges, retrieves reports from the database, formats them, and generates consolidated markdown exports.
 - The editor supports saving, copying, and AI polish.
 
 ```mermaid
 sequenceDiagram
 participant Client as "ReportEditor<br/>components/report-editor.tsx"
-participant API as "Generate Endpoint<br/>/api/reports/generate"
+participant History as "HistoryView<br/>components/history-view.tsx"
+participant Gen as "Generate Endpoint<br/>/api/reports/generate"
+participant Export as "Export Endpoint<br/>/api/reports/export"
 participant DB as "Prisma<br/>lib/prisma.ts"
 participant GL as "GitLab Client<br/>lib/gitlab.ts"
 participant TPL as "Handlebars<br/>lib/report.ts"
-Client->>API : "GET /api/reports/generate?date&templateId&projectIds"
-API->>DB : "Load user, projects, template"
-API->>GL : "listCommits(projectId, since, until, branch)"
-GL-->>API : "Commits[]"
-API->>API : "filterCommits + dedupe + parseConventional"
-API->>TPL : "renderTemplate(context)"
-TPL-->>API : "Markdown content"
-API-->>Client : "{date, content, templateId, context, errors}"
+Client->>Gen : "GET /api/reports/generate?date&templateId&projectIds"
+History->>Export : "GET /api/reports/export?startDate&endDate"
+Export->>DB : "Find reports by date range"
+Export-->>History : "{reports : [{date, content}]}"
+History->>History : "Format markdown and trigger download"
+Gen->>DB : "Load user, projects, template"
+Gen->>GL : "listCommits(projectId, since, until, branch)"
+GL-->>Gen : "Commits[]"
+Gen->>Gen : "filterCommits + dedupe + parseConventional"
+Gen->>TPL : "renderTemplate(context)"
+TPL-->>Gen : "Markdown content"
+Gen-->>Client : "{date, content, templateId, context, errors}"
 ```
 
 **Diagram sources**
 - [components/report-editor.tsx:67-91](file://components/report-editor.tsx#L67-L91)
+- [components/history-view.tsx:103-152](file://components/history-view.tsx#L103-L152)
 - [app/api/reports/generate/route.ts:23-132](file://app/api/reports/generate/route.ts#L23-L132)
+- [app/api/reports/export/route.ts:10-52](file://app/api/reports/export/route.ts#L10-L52)
 - [lib/gitlab.ts:120-148](file://lib/gitlab.ts#L120-L148)
 - [lib/report.ts:52-144](file://lib/report.ts#L52-L144)
 
@@ -344,15 +376,61 @@ Route-->>Client : "{date, content, templateId, context, errors}"
 - [app/api/reports/generate/route.ts:14-30](file://app/api/reports/generate/route.ts#L14-L30)
 - [app/api/reports/generate/route.ts:108-131](file://app/api/reports/generate/route.ts#L108-L131)
 
+### Report Export Functionality
+**Updated** Added comprehensive export functionality for generating consolidated markdown reports across date ranges.
+
+- Endpoint: GET /api/reports/export
+- Query parameters:
+  - startDate: YYYY-MM-DD (required)
+  - endDate: YYYY-MM-DD (required)
+- Validation rules:
+  - Both dates must be in valid YYYY-MM-DD format
+  - End date cannot be earlier than start date
+  - Maximum range is 92 days (3 months)
+- Response format:
+  - `{ reports: [{ date: string, content: string }] }`
+  - Reports are ordered chronologically by date
+- Frontend integration:
+  - Date range selection panel in HistoryView component
+  - Real-time validation with user feedback
+  - Markdown export generation with download capability
+  - Toast notifications for success/error states
+
+```mermaid
+sequenceDiagram
+participant History as "HistoryView<br/>components/history-view.tsx"
+participant Export as "Export Endpoint<br/>/api/reports/export"
+participant DB as "Prisma<br/>lib/prisma.ts"
+participant Utils as "UTC Helper<br/>lib/utils.ts"
+History->>History : "User selects date range"
+History->>Export : "GET /api/reports/export?startDate&endDate"
+Export->>Export : "Validate date format and range"
+Export->>DB : "Find reports by date range"
+DB-->>Export : "Reports[]"
+Export->>Utils : "Convert UTC dates to strings"
+Export-->>History : "{reports : [{date, content}]}"
+History->>History : "Format markdown and trigger download"
+History-->>History : "Toast notification with result"
+```
+
+**Diagram sources**
+- [components/history-view.tsx:103-152](file://components/history-view.tsx#L103-L152)
+- [app/api/reports/export/route.ts:10-52](file://app/api/reports/export/route.ts#L10-L52)
+- [lib/utils.ts:8-16](file://lib/utils.ts#L8-L16)
+
+**Section sources**
+- [app/api/reports/export/route.ts:1-53](file://app/api/reports/export/route.ts#L1-L53)
+- [components/history-view.tsx:26-152](file://components/history-view.tsx#L26-L152)
+
 ### Additional APIs and Workflows
-- Reports CRUD: GET /api/reports (supports date/month queries), POST to save/update, DELETE to remove.
+- Reports CRUD: GET (supports date/month queries), POST to save/update, DELETE to remove.
 - Templates CRUD: GET (auto-create default if none), POST, PATCH, DELETE.
 - GitLab Projects: GET list, PATCH to enable/disable and set default branch.
 - AI Polish: POST to improve content via an OpenAI-compatible LLM.
 - Admin Team Reports: GET to list who submitted reports for a given date.
 
 **Section sources**
-- [app/api/reports/route.ts:9-90](file://app/api/reports/route.ts#L9-L90)
+- [app/api/reports/route.ts:9-95](file://app/api/reports/route.ts#L9-L95)
 - [app/api/templates/route.ts:7-96](file://app/api/templates/route.ts#L7-L96)
 - [app/api/gitlab/projects/route.ts:6-42](file://app/api/gitlab/projects/route.ts#L6-L42)
 - [app/api/ai/polish/route.ts:10-62](file://app/api/ai/polish/route.ts#L10-L62)
@@ -366,6 +444,7 @@ Route-->>Client : "{date, content, templateId, context, errors}"
   - GitLab client for API calls
   - Report utilities for parsing, filtering, and rendering
   - Crypto for token encryption/decryption
+  - Utility functions for date handling
 - Prisma schema defines relations among User, Project, Report, and Template.
 
 ```mermaid
@@ -375,9 +454,12 @@ Editor --> ReportsAPI["/api/reports"]
 Editor --> TemplatesAPI["/api/templates"]
 Editor --> ProjAPI["/api/gitlab/projects"]
 Editor --> AIAPI["/api/ai/polish"]
+History["components/history-view.tsx"] --> ExportAPI["/api/reports/export"]
 GenAPI --> ReportLib["lib/report.ts"]
 GenAPI --> GitLab["lib/gitlab.ts"]
 GenAPI --> Prisma["lib/prisma.ts"]
+ExportAPI --> Prisma
+ExportAPI --> Utils["lib/utils.ts"]
 ProjAPI --> Prisma
 ValidateAPI["/api/gitlab/validate-token"] --> GitLab
 ValidateAPI --> Prisma
@@ -389,10 +471,13 @@ Crypto["lib/crypto.ts"] --> Prisma
 
 **Diagram sources**
 - [components/report-editor.tsx:39-53](file://components/report-editor.tsx#L39-L53)
+- [components/history-view.tsx:103-116](file://components/history-view.tsx#L103-L116)
 - [app/api/reports/generate/route.ts:54-119](file://app/api/reports/generate/route.ts#L54-L119)
+- [app/api/reports/export/route.ts:1-53](file://app/api/reports/export/route.ts#L1-L53)
 - [lib/report.ts:1-159](file://lib/report.ts#L1-L159)
 - [lib/gitlab.ts:1-149](file://lib/gitlab.ts#L1-L149)
 - [lib/crypto.ts:1-46](file://lib/crypto.ts#L1-L46)
+- [lib/utils.ts:1-16](file://lib/utils.ts#L1-L16)
 - [lib/prisma.ts:1-14](file://lib/prisma.ts#L1-L14)
 
 **Section sources**
@@ -409,17 +494,22 @@ Crypto["lib/crypto.ts"] --> Prisma
   - Project upserts are batched to reduce database round trips.
 - Filtering early:
   - Merge commits and noise regex filtering reduce downstream processing.
+- Export optimization:
+  - Date range validation prevents excessive database queries.
+  - Reports are fetched with chronological ordering for efficient processing.
 - Recommendations:
   - Cache rendered reports per user/date on the server for repeated reads.
   - Add Redis/LRU cache for recent templates and project lists.
   - Paginate and parallelize commit fetching per project; consider incremental updates.
   - Limit per-request commit window (e.g., last 7 days) to keep payloads small.
+  - Implement server-side export caching for frequently accessed date ranges.
 
 **Section sources**
 - [lib/gitlab.ts:91-111](file://lib/gitlab.ts#L91-L111)
 - [lib/gitlab.ts:120-148](file://lib/gitlab.ts#L120-L148)
 - [app/api/gitlab/validate-token/route.ts:43-67](file://app/api/gitlab/validate-token/route.ts#L43-L67)
 - [app/api/reports/generate/route.ts:57-85](file://app/api/reports/generate/route.ts#L57-L85)
+- [app/api/reports/export/route.ts:28-33](file://app/api/reports/export/route.ts#L28-L33)
 
 ## Troubleshooting Guide
 - Authentication failures:
@@ -434,16 +524,22 @@ Crypto["lib/crypto.ts"] --> Prisma
   - Requires LLM_API_BASE and LLM_API_KEY; endpoint returns a structured error if missing.
 - Per-project errors:
   - The generation endpoint aggregates errors per project and surfaces them to the UI.
+- Export errors:
+  - Date format validation fails for invalid YYYY-MM-DD patterns.
+  - Range validation prevents end dates before start dates.
+  - Maximum range exceeded for periods longer than 92 days.
+  - No reports found for the selected date range.
 
 **Section sources**
 - [app/api/reports/generate/route.ts:36-43](file://app/api/reports/generate/route.ts#L36-L43)
 - [app/api/gitlab/validate-token/route.ts:29-38](file://app/api/gitlab/validate-token/route.ts#L29-L38)
 - [lib/report.ts:137-144](file://lib/report.ts#L137-L144)
 - [app/api/ai/polish/route.ts:14-22](file://app/api/ai/polish/route.ts#L14-L22)
-- [components/report-editor.tsx:260-271](file://components/report-editor.tsx#L260-L271)
+- [components/history-view.tsx:260-271](file://components/history-view.tsx#L260-L271)
+- [app/api/reports/export/route.ts:16-33](file://app/api/reports/export/route.ts#L16-L33)
 
 ## Conclusion
-The report generation system integrates GitLab’s REST API v4 server-side, securely stores tokens, and transforms commit data into customizable markdown reports using Handlebars. The React editor provides a real-time, editable experience with project scoping, AI polish, and persistent storage. Robust filtering and conventional commit parsing ensure concise, readable outputs. With pagination caps, timeouts, and modular components, the system is designed for reliability and scalability.
+The report generation system integrates GitLab's REST API v4 server-side, securely stores tokens, and transforms commit data into customizable markdown reports using Handlebars. The React editor provides a real-time, editable experience with project scoping, AI polish, and persistent storage. Robust filtering and conventional commit parsing ensure concise, readable outputs. The new export functionality enables users to generate consolidated markdown reports across date ranges with proper validation and user feedback. With pagination caps, timeouts, and modular components, the system is designed for reliability and scalability.
 
 ## Appendices
 
@@ -455,7 +551,10 @@ The report generation system integrates GitLab’s REST API v4 server-side, secu
   - GET/PATCH /api/gitlab/projects
 - Reports:
   - GET /api/reports/generate?date&templateId&projectIds
-  - GET/POST/DELETE /api/reports
+  - GET /api/reports?date|month|list
+  - POST /api/reports
+  - DELETE /api/reports?date
+  - GET /api/reports/export?startDate&endDate (NEW)
 - Templates:
   - GET/POST/PATCH/DELETE /api/templates
 - AI Polish:
@@ -481,7 +580,7 @@ The report generation system integrates GitLab’s REST API v4 server-side, secu
 
 ### Commit Filtering Patterns
 - Drop merges: Enabled by default during context building.
-- Author email: Matches against user’s GitLab email.
+- Author email: Matches against user's GitLab email.
 - Noise regex: Case-insensitive pattern applied to commit titles.
 - See [buildContext and filterCommits:115-135](file://lib/report.ts#L115-L135) and [filterCommits:52-75](file://lib/report.ts#L52-L75).
 
@@ -493,7 +592,32 @@ The report generation system integrates GitLab’s REST API v4 server-side, secu
 - Tokens are encrypted at rest and decrypted only on the server.
 - All GitLab API calls are proxied server-side; tokens never reach the browser.
 - Passwords are hashed; rotation requires re-encryption of stored tokens.
+- Export endpoints are protected by user authentication and authorization.
 
 **Section sources**
 - [README.md:65-71](file://README.md#L65-L71)
 - [lib/crypto.ts:17-38](file://lib/crypto.ts#L17-L38)
+- [app/api/reports/export/route.ts:10-11](file://app/api/reports/export/route.ts#L10-L11)
+
+### Export Functionality Details
+**New** Comprehensive export system for generating consolidated markdown reports.
+
+- Date range validation:
+  - Supports ranges up to 92 days (3 months) maximum
+  - Prevents invalid date formats and logical inconsistencies
+- Database query optimization:
+  - Uses UTC midnight boundary for consistent date comparisons
+  - Orders results chronologically for efficient processing
+- Frontend user experience:
+  - Collapsible export panel with date inputs
+  - Real-time validation with toast notifications
+  - Downloadable markdown files with descriptive filenames
+- Error handling:
+  - Graceful error responses with meaningful messages
+  - User-friendly feedback for empty result sets
+  - Network error recovery with retry suggestions
+
+**Section sources**
+- [app/api/reports/export/route.ts:1-53](file://app/api/reports/export/route.ts#L1-L53)
+- [components/history-view.tsx:26-152](file://components/history-view.tsx#L26-L152)
+- [lib/utils.ts:8-16](file://lib/utils.ts#L8-L16)

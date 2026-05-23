@@ -18,7 +18,7 @@ type ReportSummary = { id: string; date: string; updatedAt: string };
 export function HistoryView() {
   const [month, setMonth] = useState(dayjs().format("YYYY-MM"));
   const [summaries, setSummaries] = useState<ReportSummary[]>([]);
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(dayjs().format("YYYY-MM-DD"));
   const [content, setContent] = useState("");
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -154,6 +154,16 @@ export function HistoryView() {
   useEffect(() => {
     void loadMonth();
   }, [month]);
+
+  // Auto-load today's report on mount
+  useEffect(() => {
+    if (selectedDate) {
+      fetch(`/api/reports?date=${selectedDate}`)
+        .then((res) => res.json())
+        .then((data) => setContent(data?.report?.content || ""));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="grid md:grid-cols-[320px_1fr] gap-4">
