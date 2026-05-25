@@ -5,6 +5,7 @@ import dayjs from "dayjs";
 import toast from "react-hot-toast";
 import { cn } from "@/lib/utils";
 import { StatsContent, type StatsData } from "@/components/stats-content";
+import { TrendChart } from "@/components/trend-chart";
 
 /* ---------- helpers ---------- */
 
@@ -137,6 +138,8 @@ export function StatsView() {
           </div>
 
           <StatsContent data={data} />
+
+          {data.dailyTrend && data.dailyTrend.length > 1 && (<TrendChart data={data.dailyTrend} />)}
         </>
       )}
 

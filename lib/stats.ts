@@ -33,10 +33,20 @@ export type ProjectStat = {
   commits: CommitItem[];
 };
 
+export type DailyPoint = {
+  date: string;       // "YYYY-MM-DD"
+  total: number;
+  feat: number;
+  fix: number;
+  refactor: number;
+  other: number;      // sum of all other types
+};
+
 export type UserStats = {
   total: number;
   breakdown: Record<CommitType, number>;
   byProject: ProjectStat[];
+  dailyTrend: DailyPoint[];
 };
 
 export function categorize(type: string | undefined): CommitType {
@@ -83,6 +93,7 @@ export async function computeUserStats(
   const totalBreakdown = emptyBreakdown();
   let total = 0;
   const byProject: ProjectStat[] = [];
+  const dailyMap = new Map<string, DailyPoint>();
 
   await Promise.all(
     projects.map(async (p) => {
@@ -118,6 +129,19 @@ export async function computeUserStats(
             web_url: c.web_url ?? null,
             authored_date: c.authored_date,
           });
+
+          // Accumulate daily trend
+          const day = c.authored_date.slice(0, 10); // "YYYY-MM-DD"
+          let dp = dailyMap.get(day);
+          if (!dp) {
+            dp = { date: day, total: 0, feat: 0, fix: 0, refactor: 0, other: 0 };
+            dailyMap.set(day, dp);
+          }
+          dp.total++;
+          if (cat === "feat") dp.feat++;
+          else if (cat === "fix") dp.fix++;
+          else if (cat === "refactor") dp.refactor++;
+          else dp.other++;
         }
 
         if (projTotal > 0) {
@@ -138,6 +162,9 @@ export async function computeUserStats(
   );
 
   byProject.sort((a, b) => b.total - a.total);
+  const dailyTrend = [...dailyMap.values()].sort((a, b) =>
+    a.date.localeCompare(b.date)
+  );
 
-  return { total, breakdown: totalBreakdown, byProject };
+  return { total, breakdown: totalBreakdown, byProject, dailyTrend };
 }

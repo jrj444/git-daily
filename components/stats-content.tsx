@@ -41,10 +41,19 @@ export type ProjectStat = {
   breakdown: Breakdown;
   commits: CommitItem[];
 };
+export type DailyPoint = {
+  date: string;
+  total: number;
+  feat: number;
+  fix: number;
+  refactor: number;
+  other: number;
+};
 export type StatsData = {
   total: number;
   breakdown: Breakdown;
   byProject: ProjectStat[];
+  dailyTrend?: DailyPoint[];
 };
 
 /* ---------- presentational component ---------- */

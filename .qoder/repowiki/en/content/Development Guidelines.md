@@ -3,6 +3,8 @@
 <cite>
 **Referenced Files in This Document**
 - [package.json](file://package.json)
+- [pnpm-workspace.yaml](file://pnpm-workspace.yaml)
+- [pnpm-lock.yaml](file://pnpm-lock.yaml)
 - [.eslintrc.json](file://.eslintrc.json)
 - [tsconfig.json](file://tsconfig.json)
 - [next.config.mjs](file://next.config.mjs)
@@ -27,11 +29,11 @@
 
 ## Update Summary
 **Changes Made**
-- Added comprehensive Vitest testing framework documentation
-- Updated testing strategies section with Vitest configuration and best practices
-- Added unit testing examples for report processing and utility functions
-- Updated development workflow to include Vitest testing commands
-- Enhanced testing guidelines with specific Vitest implementation details
+- Updated package manager from npm to pnpm throughout the documentation
+- Added pnpm workspace configuration guidance and workspace setup instructions
+- Updated development workflow to use pnpm commands instead of npm
+- Added pnpm-specific installation and dependency management instructions
+- Updated troubleshooting section to include pnpm-specific considerations
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -54,6 +56,8 @@
 
 ## Introduction
 This document provides comprehensive development guidelines for Pingyun Report. It covers code style standards, TypeScript configuration, ESLint rules, project structure conventions, architectural principles, testing strategies, development workflow, contribution procedures, debugging techniques, performance profiling, development tooling, dependency management, versioning, and practical examples for extending the application.
+
+**Updated** The project now uses pnpm as the package manager, offering improved performance, disk space efficiency, and workspace management capabilities compared to npm.
 
 ## Project Structure
 The project follows a Next.js 14 App Router structure with a clear separation of concerns:
@@ -442,8 +446,6 @@ Vitest --> VitestCore["@vitest/expect<br/>@vitest/utils<br/>@vitest/spy"]
 - Optimize database queries with appropriate indexes (as defined in Prisma schema).
 - **Vitest testing**: Unit tests execute quickly in Node.js environment without browser overhead.
 
-[No sources needed since this section provides general guidance]
-
 ## Troubleshooting Guide
 Common areas to inspect:
 - Authentication failures: Verify credentials provider, bcrypt comparison, and session callbacks.
@@ -452,6 +454,7 @@ Common areas to inspect:
 - Encryption errors: Ensure ENCRYPTION_KEY is set and 64 hex characters long.
 - API errors: Use the withErrors wrapper to normalize thrown responses.
 - **Vitest test failures**: Check test configuration, path aliases, and test environment setup.
+- **pnpm-specific issues**: Clear node_modules and reinstall dependencies if encountering pnpm cache problems.
 
 **Section sources**
 - [lib/auth.ts:30-77](file://lib/auth.ts#L30-L77)
@@ -466,17 +469,17 @@ Common areas to inspect:
 - Pull requests: Target develop for integration; include a summary, motivation, and test notes.
 - Code review: Ensure at least one reviewer approves; address comments promptly.
 - CI/CD: Automated checks via linter and build; production deploys via Docker Compose.
-- **Testing**: Run unit tests with Vitest using npm test or npm run test:watch for continuous testing.
+- **Testing**: Run unit tests with Vitest using pnpm test or pnpm test:watch for continuous testing.
+- **Package Manager**: Use pnpm for all development operations; pnpm install for dependency management.
 
-[No sources needed since this section provides general guidance]
+**Updated** Development workflow now uses pnpm as the primary package manager, offering improved performance and workspace management.
 
 ## Contribution and Issue Procedures
 - Issues: Provide environment details, steps to reproduce, and expected vs actual behavior.
 - Feature requests: Describe the problem being solved, acceptance criteria, and proposed solution.
 - Discussions: Use GitHub Discussions for design proposals and architecture questions.
 - **Testing requirements**: Include unit tests for new functionality; maintain test coverage.
-
-[No sources needed since this section provides general guidance]
+- **Package management**: Use pnpm commands for all dependency operations; avoid mixing npm and pnpm.
 
 ## Testing Strategies
 **Updated** Added comprehensive Vitest testing framework implementation
@@ -515,8 +518,7 @@ Common areas to inspect:
 - Profiling: Use React DevTools Profiler; analyze bundle size with Next.js telemetry.
 - Environment: Set NODE_ENV appropriately; verify middleware matchers and session providers.
 - **Vitest debugging**: Use console.log in tests; run specific test files with vitest --run filename.
-
-[No sources needed since this section provides general guidance]
+- **pnpm debugging**: Use pnpm store prune to clean up unused packages; check pnpm list for dependency conflicts.
 
 ## Code Style and Linting
 - ESLint extends Next.js Core Web Vitals recommended config.
@@ -536,11 +538,14 @@ Common areas to inspect:
 - [tsconfig.json:1-25](file://tsconfig.json#L1-L25)
 
 ## Dependency Management and Versioning
-- Dependencies: Managed in package.json; keep aligned with Next.js 14 compatibility.
+- Dependencies: Managed with pnpm; keep aligned with Next.js 14 compatibility.
 - Prisma: Use migrate dev for local schema changes; migrate deploy for production.
 - Updates: Review changelogs; test against local and CI environments.
-- Scripts: Use provided scripts for linting, building, and database operations.
+- Scripts: Use pnpm scripts for linting, building, and database operations.
 - **Vitest**: Modern testing framework replacing legacy testing approaches.
+- **pnpm workspace**: Optimized dependency management across monorepo structure.
+
+**Updated** Dependency management now uses pnpm with workspace optimization for improved performance and reduced disk usage.
 
 **Section sources**
 - [package.json:5-17](file://package.json#L5-L17)
@@ -570,6 +575,14 @@ Common areas to inspect:
   - Test edge cases and error conditions.
   - Use makeCommit helper for GitLab commit objects.
   - Test both success and failure scenarios.
+- **Using pnpm commands**:
+  - Install dependencies: pnpm install
+  - Run development server: pnpm dev
+  - Execute tests: pnpm test
+  - Build project: pnpm build
+  - Run Prisma commands: npx prisma migrate dev
+
+**Updated** Added pnpm command examples for common development tasks.
 
 **Section sources**
 - [lib/session.ts:40-55](file://lib/session.ts#L40-L55)
@@ -580,4 +593,4 @@ Common areas to inspect:
 - [lib/__tests__/utils.test.ts:4-31](file://lib/__tests__/utils.test.ts#L4-L31)
 
 ## Conclusion
-These guidelines consolidate the project's conventions, architecture, and operational practices. The addition of the Vitest testing framework significantly enhances the development workflow by providing comprehensive unit testing capabilities for core business logic. By adhering to the outlined standards—code style, TypeScript configuration, linting, Vitest testing, workflow, and security—you can contribute effectively and maintain a robust, scalable codebase with reliable automated testing.
+These guidelines consolidate the project's conventions, architecture, and operational practices. The addition of the Vitest testing framework significantly enhances the development workflow by providing comprehensive unit testing capabilities for core business logic. The migration to pnpm improves dependency management performance and workspace optimization. By adhering to the outlined standards—code style, TypeScript configuration, linting, Vitest testing, pnpm-based workflow, and security—you can contribute effectively and maintain a robust, scalable codebase with reliable automated testing and efficient package management.

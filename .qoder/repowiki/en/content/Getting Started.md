@@ -6,6 +6,8 @@
 - [package.json](file://package.json)
 - [docker-compose.yml](file://docker-compose.yml)
 - [Dockerfile](file://Dockerfile)
+- [pnpm-workspace.yaml](file://pnpm-workspace.yaml)
+- [pnpm-lock.yaml](file://pnpm-lock.yaml)
 - [prisma/schema.prisma](file://prisma/schema.prisma)
 - [prisma/seed.ts](file://prisma/seed.ts)
 - [lib/auth.ts](file://lib/auth.ts)
@@ -19,10 +21,11 @@
 
 ## Update Summary
 **Changes Made**
-- Updated all references from "Pingyun Report" to "极报" (Extreme Report)
-- Updated project name references from "pingyun-report" to "git-daily"
-- Updated branding throughout the documentation to reflect the new Chinese name and English project identifier
-- Maintained all technical content while updating the project identity
+- Updated installation instructions to reflect migration from npm to pnpm package manager
+- Updated prerequisite requirements to specify pnpm as the package manager
+- Updated Docker build process to use pnpm for dependency installation
+- Added pnpm workspace configuration information
+- Updated troubleshooting guidance to address pnpm-specific issues
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -49,6 +52,7 @@ At a high level, the project consists of:
 - Shared libraries under lib/
 - Database schema and seed logic under prisma/
 - Build and runtime configuration files (Dockerfile, docker-compose.yml, next.config.mjs, package.json)
+- Workspace configuration under pnpm-workspace.yaml
 
 ```mermaid
 graph TB
@@ -80,6 +84,7 @@ C1["next.config.mjs"]
 C2["Dockerfile"]
 C3["docker-compose.yml"]
 C4["package.json"]
+C5["pnpm-workspace.yaml"]
 end
 P1 --> A3
 P2 --> A1
@@ -98,13 +103,15 @@ D2 --> L4
 C1 --> C2
 C2 --> C3
 C4 --> C2
+C5 --> C2
 ```
 
 **Diagram sources**
 - [next.config.mjs:1-11](file://next.config.mjs#L1-L11)
 - [Dockerfile:1-44](file://Dockerfile#L1-L44)
 - [docker-compose.yml:1-21](file://docker-compose.yml#L1-L21)
-- [package.json:1-48](file://package.json#L1-L48)
+- [package.json:1-51](file://package.json#L1-L51)
+- [pnpm-workspace.yaml:1-7](file://pnpm-workspace.yaml#L1-L7)
 - [prisma/schema.prisma:1-81](file://prisma/schema.prisma#L1-L81)
 - [prisma/seed.ts:1-63](file://prisma/seed.ts#L1-L63)
 - [lib/auth.ts:1-77](file://lib/auth.ts#L1-L77)
@@ -115,8 +122,9 @@ C4 --> C2
 - [app/api/gitlab/projects/route.ts:1-163](file://app/api/gitlab/projects/route.ts#L1-L163)
 
 **Section sources**
-- [README.md:129-179](file://README.md#L129-L179)
-- [package.json:1-48](file://package.json#L1-L48)
+- [README.md:130-180](file://README.md#L130-L180)
+- [package.json:1-51](file://package.json#L1-L51)
+- [pnpm-workspace.yaml:1-7](file://pnpm-workspace.yaml#L1-L7)
 - [next.config.mjs:1-11](file://next.config.mjs#L1-L11)
 
 ## Core Components
@@ -125,6 +133,7 @@ C4 --> C2
 - GitLab integration through server-side route handlers that proxy API calls and securely store tokens.
 - Encryption utilities for GitLab personal access tokens at rest.
 - Seed script that provisions an initial admin user and default template.
+- Workspace configuration managed through pnpm workspace.
 
 Key implementation references:
 - Authentication configuration and JWT/session callbacks
@@ -132,6 +141,7 @@ Key implementation references:
 - GitLab client helpers for user, projects, and commits
 - Prisma client initialization and logging behavior
 - Seed script for admin and default template creation
+- pnpm workspace configuration for dependency management
 
 **Section sources**
 - [lib/auth.ts:30-77](file://lib/auth.ts#L30-L77)
@@ -139,6 +149,7 @@ Key implementation references:
 - [lib/gitlab.ts:45-172](file://lib/gitlab.ts#L45-L172)
 - [lib/prisma.ts:7-14](file://lib/prisma.ts#L7-L14)
 - [prisma/seed.ts:19-53](file://prisma/seed.ts#L19-L53)
+- [pnpm-workspace.yaml:1-7](file://pnpm-workspace.yaml#L1-L7)
 
 ## Architecture Overview
 The system follows a layered architecture:
@@ -146,6 +157,7 @@ The system follows a layered architecture:
 - API Layer: Route handlers under app/api/ implementing CRUD and integrations
 - Domain Services: Authentication, encryption, GitLab client
 - Persistence: Prisma client with MySQL
+- Package Management: pnpm workspace for efficient dependency management
 
 ```mermaid
 graph TB
@@ -158,6 +170,9 @@ PRISMA --> DB["MySQL Database"]
 AUTH --> PRISMA
 ENC --> PRISMA
 GIT --> GLAPI["GitLab REST API"]
+PKG["Package Management<br/>pnpm workspace"] --> UI
+PKG --> API
+PKG --> PRISMA
 ```
 
 **Diagram sources**
@@ -166,17 +181,18 @@ GIT --> GLAPI["GitLab REST API"]
 - [lib/gitlab.ts:45-80](file://lib/gitlab.ts#L45-L80)
 - [lib/prisma.ts:7-14](file://lib/prisma.ts#L7-L14)
 - [prisma/schema.prisma:6-9](file://prisma/schema.prisma#L6-L9)
+- [pnpm-workspace.yaml:1-7](file://pnpm-workspace.yaml#L1-L7)
 
 ## Detailed Component Analysis
 
 ### Prerequisites
 - Node.js 20.x
-- npm (used by the project scripts)
+- pnpm (package manager for dependency management)
 - MySQL 5.7+ or compatible
 - Docker and Docker Compose for production deployment
 
 Verification steps:
-- Confirm Node.js and npm versions
+- Confirm Node.js and pnpm versions
 - Verify MySQL connectivity and database availability
 - Ensure Docker daemon is running for production deployment
 
@@ -187,7 +203,7 @@ Verification steps:
 
 ### Step-by-Step Installation
 1. Install dependencies
-   - Run the package manager install command defined in the project scripts.
+   - Run `pnpm install` to install dependencies using pnpm package manager.
 2. Prepare environment variables
    - Copy the example environment file and configure required variables.
 3. Apply database migrations
@@ -229,7 +245,8 @@ Notes:
 
 ```mermaid
 flowchart TD
-Start(["Start"]) --> Migrate["Run Prisma migrate dev"]
+Start(["Start"]) --> Install["Run pnpm install"]
+Install --> Migrate["Run Prisma migrate dev"]
 Migrate --> Seed["Run seed script"]
 Seed --> Dev["Start Next.js dev server"]
 Dev --> Verify["Open app in browser"]
@@ -328,6 +345,7 @@ Start --> Listen["Listen on port 3000"]
 - GitLab REST API integration via server-side route handlers
 - Tailwind CSS and react-md-editor for UI
 - Optional OpenAI-compatible LLM for AI polish
+- pnpm workspace for efficient dependency management
 
 ```mermaid
 graph LR
@@ -336,20 +354,27 @@ Next --> UI["Tailwind + react-md-editor"]
 Next --> Prisma["@prisma/client"]
 Next --> Git["GitLab API"]
 Next --> LLM["Optional LLM"]
+PNPM["pnpm workspace"] --> Next
+PNPM --> Prisma
+PNPM --> Auth
+PNPM --> Git
 ```
 
 **Diagram sources**
 - [package.json:16-31](file://package.json#L16-L31)
 - [next.config.mjs:1-11](file://next.config.mjs#L1-L11)
+- [pnpm-workspace.yaml:1-7](file://pnpm-workspace.yaml#L1-L7)
 
 **Section sources**
 - [package.json:16-45](file://package.json#L16-L45)
 - [next.config.mjs:1-11](file://next.config.mjs#L1-L11)
+- [pnpm-workspace.yaml:1-7](file://pnpm-workspace.yaml#L1-L7)
 
 ## Performance Considerations
 - Use the production-ready standalone output and minimal base image for containerized deployments.
 - Keep Prisma client logs scoped to errors in production to reduce overhead.
 - Limit pagination and safety caps when fetching GitLab resources to avoid long-running requests.
+- pnpm provides improved performance and workspace configuration compared to npm.
 
 ## Troubleshooting Guide
 Common setup issues and resolutions:
@@ -369,6 +394,10 @@ Common setup issues and resolutions:
 - Docker build or runtime issues
   - Ensure Docker daemon is running and images build successfully.
   - Verify environment variables passed via compose.
+- pnpm-specific issues
+  - Clear pnpm cache if encountering dependency conflicts: `pnpm store prune`
+  - Use `pnpm install --frozen-lockfile` to ensure lockfile integrity
+  - Check for workspace configuration issues in pnpm-workspace.yaml
 
 Verification steps:
 - After setup, log in, validate GitLab configuration, and confirm project list loading.
@@ -380,9 +409,10 @@ Verification steps:
 - [lib/crypto.ts:8-15](file://lib/crypto.ts#L8-L15)
 - [lib/gitlab.ts:58-80](file://lib/gitlab.ts#L58-L80)
 - [docker-compose.yml:10-20](file://docker-compose.yml#L10-L20)
+- [pnpm-workspace.yaml:1-7](file://pnpm-workspace.yaml#L1-L7)
 
 ## Conclusion
-You now have the essentials to install, configure, and run 极报 (Extreme Report) locally and in production. Complete the first-time configuration by connecting GitLab, selecting projects, and customizing templates. For production, rely on the provided Docker Compose setup and ensure environment variables are correctly configured.
+You now have the essentials to install, configure, and run 极报 (Extreme Report) locally and in production using pnpm as the package manager. Complete the first-time configuration by connecting GitLab, selecting projects, and customizing templates. For production, rely on the provided Docker Compose setup and ensure environment variables are correctly configured. The pnpm workspace configuration provides improved performance and dependency management compared to traditional npm setups.
 
 ## Appendices
 
@@ -397,3 +427,13 @@ You now have the essentials to install, configure, and run 极报 (Extreme Repor
 **Section sources**
 - [README.md:114-128](file://README.md#L114-L128)
 - [docker-compose.yml:10-20](file://docker-compose.yml#L10-L20)
+
+### pnpm Workspace Configuration
+The project uses pnpm workspace for efficient dependency management:
+- Workspace allows for monorepo-style dependency sharing
+- Build optimization enabled for Prisma and related packages
+- Lockfile ensures consistent dependency versions across environments
+
+**Section sources**
+- [pnpm-workspace.yaml:1-7](file://pnpm-workspace.yaml#L1-L7)
+- [pnpm-lock.yaml:1-800](file://pnpm-lock.yaml#L1-L800)
