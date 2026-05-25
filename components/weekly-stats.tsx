@@ -14,7 +14,10 @@ export function WeeklyStats() {
   useEffect(() => {
     async function load() {
       const endDate = dayjs().format("YYYY-MM-DD");
-      const startDate = dayjs().subtract(6, "day").format("YYYY-MM-DD");
+      // Start from Monday of the current week (consistent with stats page)
+      const dayOfWeek = dayjs().day(); // 0=Sun
+      const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      const startDate = dayjs().subtract(diff, "day").format("YYYY-MM-DD");
       try {
         const res = await fetch(
           `/api/stats/commits?startDate=${startDate}&endDate=${endDate}`
@@ -67,7 +70,7 @@ export function WeeklyStats() {
       {/* Empty state */}
       {!loading && !error && data && data.total === 0 && (
         <div className="bg-card border border-border rounded-lg p-6 text-center text-sm text-muted-foreground">
-          最近 7 天暂无提交记录
+          本周暂无提交记录
         </div>
       )}
 

@@ -287,7 +287,7 @@ export function ReportEditor() {
           value={content}
           onChange={(v) => setContent(v ?? "")}
           height={420}
-          preview="edit"
+          preview={typeof window !== "undefined" && window.innerWidth < 768 ? "edit" : "live"}
         />
       </div>
     </div>

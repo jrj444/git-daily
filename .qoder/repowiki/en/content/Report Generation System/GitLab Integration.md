@@ -14,15 +14,16 @@
 - [settings-form.tsx](file://components/settings-form.tsx)
 - [middleware.ts](file://middleware.ts)
 - [report.ts](file://lib/report.ts)
+- [stats.ts](file://lib/stats.ts)
 </cite>
 
 ## Update Summary
 **Changes Made**
-- Enhanced commit filtering pipeline with merge commit detection and conventional commit parsing
-- Improved noise regex filtering with case-insensitive pattern matching
-- Added parallel project querying capabilities using Promise.all
-- Expanded statistics reporting with commit categorization and breakdown analysis
-- Strengthened conventional commit message parsing with structured type extraction
+- Enhanced project management with duplicate prevention logic to prevent adding existing projects
+- Improved error handling for duplicate projects with clear 409 conflict responses
+- Maintained defaultBranch field in project operations for backward compatibility
+- Enhanced project configuration system with robust duplicate detection
+- Improved user experience with clear error messaging for duplicate project additions
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -38,7 +39,7 @@
 11. [Conclusion](#conclusion)
 
 ## Introduction
-This document explains the GitLab integration system implemented in the backend and frontend of the application. It covers the server-side GitLab API client, authentication and token management, project configuration, commit fetching workflow, enhanced filtering and rendering pipeline, and error handling strategies. The system now features improved commit filtering with merge detection, conventional commit parsing, noise regex filtering, and parallel project querying capabilities for enhanced performance and accuracy.
+This document explains the GitLab integration system implemented in the backend and frontend of the application. It covers the server-side GitLab API client, authentication and token management, project configuration, commit fetching workflow, enhanced filtering and rendering pipeline, and error handling strategies. The system now features improved project management with duplicate prevention logic, enhanced error handling for duplicate projects, and maintains backward compatibility with the defaultBranch field in project operations.
 
 ## Project Structure
 The GitLab integration spans several modules with enhanced capabilities:
@@ -65,6 +66,7 @@ GL["GitLab Client<br/>lib/gitlab.ts"]
 CR["Crypto<br/>lib/crypto.ts"]
 SE["Session/Auth<br/>lib/session.ts, lib/auth.ts"]
 RP["Report Utils<br/>lib/report.ts"]
+ST["Stats Utils<br/>lib/stats.ts"]
 end
 subgraph "Persistence"
 PR["Prisma Schema<br/>prisma/schema.prisma"]
@@ -83,6 +85,7 @@ SC --> GL
 SC --> CR
 SC --> PR
 SC --> RP
+SC --> ST
 SE --> VT
 SE --> PJ
 SE --> GR
@@ -91,7 +94,7 @@ SE --> SC
 
 **Diagram sources**
 - [settings-form.tsx:1-222](file://components/settings-form.tsx#L1-L222)
-- [validate-token/route.ts:1-88](file://app/api/gitlab/validate-token/route.ts#L1-L88)
+- [validate-token/route.ts:1-87](file://app/api/gitlab/validate-token/route.ts#L1-L87)
 - [projects/route.ts:1-163](file://app/api/gitlab/projects/route.ts#L1-L163)
 - [generate/route.ts:1-133](file://app/api/reports/generate/route.ts#L1-L133)
 - [stats-commits/route.ts:1-129](file://app/api/stats/commits/route.ts#L1-L129)
@@ -100,11 +103,12 @@ SE --> SC
 - [session.ts:1-56](file://lib/session.ts#L1-L56)
 - [auth.ts:1-77](file://lib/auth.ts#L1-L77)
 - [report.ts:1-159](file://lib/report.ts#L1-L159)
+- [stats.ts:1-144](file://lib/stats.ts#L1-L144)
 - [schema.prisma:1-81](file://prisma/schema.prisma#L1-L81)
 
 **Section sources**
 - [settings-form.tsx:1-222](file://components/settings-form.tsx#L1-L222)
-- [validate-token/route.ts:1-88](file://app/api/gitlab/validate-token/route.ts#L1-L88)
+- [validate-token/route.ts:1-87](file://app/api/gitlab/validate-token/route.ts#L1-L87)
 - [projects/route.ts:1-163](file://app/api/gitlab/projects/route.ts#L1-L163)
 - [generate/route.ts:1-133](file://app/api/reports/generate/route.ts#L1-L133)
 - [stats-commits/route.ts:1-129](file://app/api/stats/commits/route.ts#L1-L129)
@@ -113,6 +117,7 @@ SE --> SC
 - [session.ts:1-56](file://lib/session.ts#L1-L56)
 - [auth.ts:1-77](file://lib/auth.ts#L1-L77)
 - [report.ts:1-159](file://lib/report.ts#L1-L159)
+- [stats.ts:1-144](file://lib/stats.ts#L1-L144)
 - [schema.prisma:1-81](file://prisma/schema.prisma#L1-L81)
 
 ## Core Components
@@ -120,7 +125,7 @@ SE --> SC
 - **Enhanced filtering pipeline**: Advanced commit filtering with merge commit detection, conventional commit parsing, noise regex filtering, and deduplication.
 - **Token encryption/decryption**: AES-256-GCM via environment-backed key for secure storage of GitLab personal access tokens.
 - **Session and authentication**: NextAuth-based JWT session with server-side route guards and error normalization.
-- **Project configuration**: CRUD-like operations to enable/disable projects and set default branches per user.
+- **Project configuration**: CRUD-like operations to enable/disable projects and set default branches per user with duplicate prevention logic.
 - **Statistics reporting**: Date-range commit retrieval with categorization and breakdown analysis.
 - **Parallel processing**: Concurrent project querying using Promise.all for improved performance.
 
@@ -229,7 +234,7 @@ VT->>PR : "update user fields (baseUrl, userId, email, optional token)"
 **Section sources**
 - [auth.ts:30-77](file://lib/auth.ts#L30-L77)
 - [session.ts:11-56](file://lib/session.ts#L11-L56)
-- [validate-token/route.ts:1-88](file://app/api/gitlab/validate-token/route.ts#L1-L88)
+- [validate-token/route.ts:1-87](file://app/api/gitlab/validate-token/route.ts#L1-L87)
 - [crypto.ts:1-46](file://lib/crypto.ts#L1-L46)
 
 ### Commit Fetching Workflow
@@ -265,11 +270,15 @@ GR-->>Client : "{content, errors}"
 - [report.ts:1-159](file://lib/report.ts#L1-L159)
 
 ### Project Configuration System
-- Listing projects: Returns user-scoped, enabled-first ordered list.
-- Updating projects: Toggle enabled flag and set defaultBranch per project.
-- Adding projects: Supports both numeric IDs and URL-encoded paths with automatic upsert.
-- Refreshing projects: Bulk refresh with membership filtering and simple mode.
-- Frontend: SettingsForm displays projects, supports filtering, toggling, and branch editing.
+- **Enhanced Duplicate Prevention**: The system now includes robust duplicate prevention logic that checks for existing projects before adding new ones.
+- **Improved Error Handling**: Returns clear 409 Conflict responses with descriptive error messages when attempting to add duplicate projects.
+- **Maintained Backward Compatibility**: The defaultBranch field remains part of project operations for backward compatibility.
+- **Listing projects**: Returns user-scoped, enabled-first ordered list.
+- **Updating projects**: Toggle enabled flag and set defaultBranch per project.
+- **Adding projects**: Supports both numeric IDs and URL-encoded paths with automatic upsert and duplicate detection.
+- **Refreshing projects**: Bulk refresh with membership filtering and simple mode.
+
+**Updated** Enhanced with duplicate prevention logic and improved error handling for better user experience.
 
 ```mermaid
 flowchart TD
@@ -283,14 +292,20 @@ Save --> OK["Return updated project"]
 A["POST /api/gitlab/projects"] --> Check{"refreshAll?"}
 Check -- "Yes" --> Bulk["Bulk refresh with listProjects"]
 Check -- "No" --> Single["Single project lookup/getProject"]
-Bulk --> Upsert["Upsert projects"]
-Single --> Upsert
+Bulk --> Upsert["Upsert projects with duplicate prevention"]
+Single --> Lookup["Lookup existing project"]
+Lookup --> ExistsDup{"Already exists?"}
+ExistsDup -- "Yes" --> Conflict["Return 409 Conflict with error message"]
+ExistsDup -- "No" --> Create["Create new project"]
 Upsert --> Return["Return created/updated project"]
+Conflict --> Return
+Create --> Return
 ```
 
 **Diagram sources**
 - [projects/route.ts:8-46](file://app/api/gitlab/projects/route.ts#L8-L46)
 - [projects/route.ts:55-144](file://app/api/gitlab/projects/route.ts#L55-L144)
+- [projects/route.ts:124-132](file://app/api/gitlab/projects/route.ts#L124-L132)
 
 **Section sources**
 - [projects/route.ts:1-163](file://app/api/gitlab/projects/route.ts#L1-L163)
@@ -395,11 +410,14 @@ sequenceDiagram
 participant SC as "Stats Commits Route"
 participant PR as "Prisma"
 participant GL as "GitLab Client"
+participant ST as "Stats Utils"
 SC->>PR : "find enabled projects"
 SC->>GL : "listCommits(projectId, since, until, branch?)"
 GL-->>SC : "GitLabCommit[]"
-SC->>SC : "filterCommits + parseConventional"
-SC->>SC : "categorize by type"
+SC->>ST : "computeUserStats with parallel processing"
+ST->>ST : "filterCommits + parseConventional"
+ST->>ST : "categorize by type"
+ST-->>SC : "{total, breakdown, byProject}"
 SC-->>Client : "{total, breakdown, byProject}"
 ```
 
@@ -407,10 +425,12 @@ SC-->>Client : "{total, breakdown, byProject}"
 - [stats-commits/route.ts:47-129](file://app/api/stats/commits/route.ts#L47-L129)
 - [gitlab.ts:143-171](file://lib/gitlab.ts#L143-L171)
 - [report.ts:52-105](file://lib/report.ts#L52-L105)
+- [stats.ts:69-144](file://lib/stats.ts#L69-L144)
 
 **Section sources**
 - [generate/route.ts:57-85](file://app/api/reports/generate/route.ts#L57-L85)
 - [stats-commits/route.ts:83-122](file://app/api/stats/commits/route.ts#L83-L122)
+- [stats.ts:69-144](file://lib/stats.ts#L69-L144)
 
 ## Dependency Analysis
 - Routes depend on:
@@ -419,6 +439,7 @@ SC-->>Client : "{total, breakdown, byProject}"
   - Crypto for token encryption/decryption.
   - Prisma for persistence.
   - Report utilities for enhanced filtering and processing.
+  - Stats utilities for concurrent statistics computation.
 - Frontend depends on Next.js runtime and interacts with server routes.
 - Middleware enforces authentication for protected paths.
 
@@ -436,6 +457,7 @@ SC["stats-commits/route.ts"] --> GL
 SC --> CR
 SC --> PR
 SC --> RP
+SC --> ST["stats.ts"]
 SE["session.ts"] --> VT
 SE --> PJ
 SE --> GR
@@ -447,7 +469,7 @@ SF --> PJ
 ```
 
 **Diagram sources**
-- [validate-token/route.ts:1-88](file://app/api/gitlab/validate-token/route.ts#L1-L88)
+- [validate-token/route.ts:1-87](file://app/api/gitlab/validate-token/route.ts#L1-L87)
 - [projects/route.ts:1-163](file://app/api/gitlab/projects/route.ts#L1-L163)
 - [generate/route.ts:1-133](file://app/api/reports/generate/route.ts#L1-L133)
 - [stats-commits/route.ts:1-129](file://app/api/stats/commits/route.ts#L1-L129)
@@ -457,11 +479,12 @@ SF --> PJ
 - [auth.ts:1-77](file://lib/auth.ts#L1-L77)
 - [middleware.ts:1-10](file://middleware.ts#L1-L10)
 - [report.ts:1-159](file://lib/report.ts#L1-L159)
+- [stats.ts:1-144](file://lib/stats.ts#L1-L144)
 - [schema.prisma:1-81](file://prisma/schema.prisma#L1-L81)
 - [settings-form.tsx:1-222](file://components/settings-form.tsx#L1-L222)
 
 **Section sources**
-- [validate-token/route.ts:1-88](file://app/api/gitlab/validate-token/route.ts#L1-L88)
+- [validate-token/route.ts:1-87](file://app/api/gitlab/validate-token/route.ts#L1-L87)
 - [projects/route.ts:1-163](file://app/api/gitlab/projects/route.ts#L1-L163)
 - [generate/route.ts:1-133](file://app/api/reports/generate/route.ts#L1-L133)
 - [stats-commits/route.ts:1-129](file://app/api/stats/commits/route.ts#L1-L129)
@@ -471,6 +494,7 @@ SF --> PJ
 - [auth.ts:1-77](file://lib/auth.ts#L1-L77)
 - [middleware.ts:1-10](file://middleware.ts#L1-L10)
 - [report.ts:1-159](file://lib/report.ts#L1-L159)
+- [stats.ts:1-144](file://lib/stats.ts#L1-L144)
 - [schema.prisma:1-81](file://prisma/schema.prisma#L1-L81)
 - [settings-form.tsx:1-222](file://components/settings-form.tsx#L1-L222)
 
@@ -482,18 +506,21 @@ SF --> PJ
 - **Network timeouts**: Requests are aborted after a fixed timeout to prevent indefinite waits.
 - **Enhanced filtering efficiency**: Conventional commit parsing and merge detection are optimized for performance.
 - **Memory management**: Deduplication uses efficient Set-based lookups for O(1) average-case complexity.
+- **Duplicate prevention optimization**: Project existence checks use efficient database queries to minimize duplicate additions.
 
 Recommendations:
 - Consider implementing a project-level cache keyed by date range and branch to avoid repeated GitLab API calls for the same window.
 - For large organizations, consider incremental synchronization of project metadata and last-seen commit timestamps.
 - Monitor API rate limits and implement retry/backoff with jitter if integrating with hosted GitLab instances.
 - Implement circuit breaker patterns for GitLab API calls to handle transient failures gracefully.
+- The duplicate prevention logic adds minimal overhead as it uses efficient database uniqueness constraints and existence checks.
 
 **Section sources**
 - [gitlab.ts:95-121](file://lib/gitlab.ts#L95-L121)
 - [validate-token/route.ts:47-81](file://app/api/gitlab/validate-token/route.ts#L47-L81)
 - [generate/route.ts:57-85](file://app/api/reports/generate/route.ts#L57-L85)
 - [stats-commits/route.ts:83-122](file://app/api/stats/commits/route.ts#L83-L122)
+- [projects/route.ts:124-132](file://app/api/gitlab/projects/route.ts#L124-L132)
 
 ## Troubleshooting Guide
 Common issues and resolutions:
@@ -505,6 +532,8 @@ Common issues and resolutions:
 - **Conventional commit parsing failures**: Invalid commit messages fall back to title-based parsing without affecting overall processing.
 - **Merge commit filtering**: If merge commits are appearing unexpectedly, verify the dropMerges setting in filter options.
 - **Noise regex issues**: Invalid regex patterns are caught and ignored; check regex syntax if filtering isn't working as expected.
+- **Duplicate project errors**: When adding projects, the system returns 409 Conflict with a clear error message if the project already exists.
+- **Project already exists**: The system prevents duplicate project additions with clear error messaging to improve user experience.
 
 Operational tips:
 - Verify ENCRYPTION_KEY environment variable length and format.
@@ -512,6 +541,7 @@ Operational tips:
 - Check middleware configuration for protected paths.
 - Monitor API rate limits and implement appropriate backoff strategies.
 - Test conventional commit message formats to ensure proper parsing.
+- Use the project management interface to avoid duplicate additions by checking existing projects first.
 
 **Section sources**
 - [session.ts:22-56](file://lib/session.ts#L22-L56)
@@ -520,6 +550,7 @@ Operational tips:
 - [gitlab.ts:75-84](file://lib/gitlab.ts#L75-L84)
 - [middleware.ts:3-9](file://middleware.ts#L3-L9)
 - [report.ts:56-63](file://lib/report.ts#L56-L63)
+- [projects/route.ts:127-131](file://app/api/gitlab/projects/route.ts#L127-L131)
 
 ## Conclusion
-The GitLab integration has been significantly enhanced with improved commit filtering, conventional commit parsing, merge commit detection, noise filtering, and parallel project querying capabilities. The system now provides robust server-side API client functionality, secure token handling, flexible report pipeline, and efficient statistics collection. With built-in error handling, timeouts, pagination safeguards, and concurrent processing, the system is highly resilient and performant for production use. The enhanced filtering pipeline ensures high-quality daily reports with accurate commit categorization and deduplication. Extending caching and incremental synchronization can further improve performance at scale while maintaining the system's reliability and security standards.
+The GitLab integration has been significantly enhanced with improved project management, duplicate prevention logic, and robust error handling. The system now provides enhanced user experience with clear duplicate detection and conflict resolution, while maintaining backward compatibility with the defaultBranch field in project operations. The system continues to offer robust server-side API client functionality, secure token handling, flexible report pipeline, and efficient statistics collection. With built-in error handling, timeouts, pagination safeguards, and concurrent processing, the system is highly resilient and performant for production use. The enhanced filtering pipeline ensures high-quality daily reports with accurate commit categorization and deduplication. The duplicate prevention logic specifically addresses common user scenarios where duplicate project additions could cause confusion or data integrity issues. Extending caching and incremental synchronization can further improve performance at scale while maintaining the system's reliability and security standards.
