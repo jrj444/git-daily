@@ -16,20 +16,30 @@
 - [schema.prisma](file://prisma/schema.prisma)
 </cite>
 
+## Update Summary
+**Changes Made**
+- Enhanced mobile responsiveness section with automatic preview mode switching
+- Updated markdown editor integration section to reflect dynamic preview mode behavior
+- Added new section covering mobile-first design patterns and responsive editing experience
+- Updated UI composition section to include mobile-specific layout considerations
+
 ## Table of Contents
 1. [Introduction](#introduction)
 2. [Project Structure](#project-structure)
 3. [Core Components](#core-components)
 4. [Architecture Overview](#architecture-overview)
 5. [Detailed Component Analysis](#detailed-component-analysis)
-6. [Dependency Analysis](#dependency-analysis)
-7. [Performance Considerations](#performance-considerations)
-8. [Troubleshooting Guide](#troubleshooting-guide)
-9. [Conclusion](#conclusion)
-10. [Appendices](#appendices)
+6. [Mobile Responsiveness Enhancement](#mobile-responsiveness-enhancement)
+7. [Dependency Analysis](#dependency-analysis)
+8. [Performance Considerations](#performance-considerations)
+9. [Troubleshooting Guide](#troubleshooting-guide)
+10. [Conclusion](#conclusion)
+11. [Appendices](#appendices)
 
 ## Introduction
 This document provides comprehensive documentation for the ReportEditor component, the core UI component responsible for report generation and editing. It covers state management for date selection, template selection, project filtering, and content editing, along with integration patterns for the markdown editor, API integrations for report generation, saving, copying, and AI polishing, project selection with enable/disable functionality and branch information display, error handling, loading states, user feedback mechanisms, lifecycle hooks, dependency management, performance optimizations, and customization patterns.
+
+**Enhanced** The component now features improved mobile responsiveness with automatic preview mode switching based on screen width, providing an optimal editing experience across device sizes.
 
 ## Project Structure
 The ReportEditor component is located under components and integrates with several backend APIs and shared libraries. The frontend component manages UI state and user interactions, while the backend APIs handle data fetching, report generation, persistence, and AI enhancement.
@@ -60,7 +70,7 @@ BE_AI_Polish --> Prisma_Schema
 ```
 
 **Diagram sources**
-- [report-editor.tsx:1-284](file://components/report-editor.tsx#L1-L284)
+- [report-editor.tsx:1-296](file://components/report-editor.tsx#L1-L296)
 - [generate.route.ts:1-133](file://app/api/reports/generate/route.ts#L1-L133)
 - [reports.route.ts:1-90](file://app/api/reports/route.ts#L1-L90)
 - [templates.route.ts:1-96](file://app/api/templates/route.ts#L1-L96)
@@ -71,8 +81,8 @@ BE_AI_Polish --> Prisma_Schema
 - [schema.prisma:1-80](file://prisma/schema.prisma#L1-L80)
 
 **Section sources**
-- [report-editor.tsx:1-284](file://components/report-editor.tsx#L1-L284)
-- [page.tsx:1-20](file://app/page.tsx#L1-L20)
+- [report-editor.tsx:1-296](file://components/report-editor.tsx#L1-L296)
+- [page.tsx:1-22](file://app/page.tsx#L1-L22)
 - [schema.prisma:1-80](file://prisma/schema.prisma#L1-L80)
 
 ## Core Components
@@ -87,12 +97,13 @@ Key responsibilities:
 - Persist edited content to the database.
 - Provide AI-powered content polishing.
 - Display project errors encountered during generation.
+- **Enhanced** Automatically switch between edit and live preview modes based on screen width for optimal mobile experience.
 
 **Section sources**
-- [report-editor.tsx:19-284](file://components/report-editor.tsx#L19-L284)
+- [report-editor.tsx:19-296](file://components/report-editor.tsx#L19-L296)
 
 ## Architecture Overview
-The ReportEditor component orchestrates user interactions and API calls. It dynamically loads the markdown editor to provide live preview editing capabilities. The backend APIs handle GitLab integration, template rendering, report persistence, and AI enhancement.
+The ReportEditor component orchestrates user interactions and API calls. It dynamically loads the markdown editor to provide live preview editing capabilities with responsive behavior. The backend APIs handle GitLab integration, template rendering, report persistence, and AI enhancement.
 
 ```mermaid
 sequenceDiagram
@@ -110,7 +121,7 @@ Editor->>API_Proj : Load projects
 Editor->>API_Rep : Load existing report (if any)
 Editor->>API_Gen : Generate report (with date, templateId, projectIds)
 API_Gen-->>Editor : {content, errors, templateId}
-Editor->>MD : Render live preview
+Editor->>MD : Render with responsive preview mode
 User->>Editor : Edit content
 User->>Editor : Click Save
 Editor->>API_Rep : POST report content
@@ -122,7 +133,7 @@ Editor->>MD : Update content
 ```
 
 **Diagram sources**
-- [report-editor.tsx:39-164](file://components/report-editor.tsx#L39-L164)
+- [report-editor.tsx:39-174](file://components/report-editor.tsx#L39-L174)
 - [generate.route.ts:23-132](file://app/api/reports/generate/route.ts#L23-L132)
 - [reports.route.ts:9-76](file://app/api/reports/route.ts#L9-L76)
 - [templates.route.ts:7-24](file://app/api/templates/route.ts#L7-L24)
@@ -143,7 +154,7 @@ The component maintains the following state:
 - Saved status: indicates whether the current content is persisted.
 
 State initialization and updates:
-- Date defaults to today’s date.
+- Date defaults to today's date.
 - Templates and projects are loaded concurrently on mount.
 - Existing report content is loaded for the selected date; otherwise, auto-generation occurs.
 - Selected projects default to all enabled projects.
@@ -160,21 +171,27 @@ SetContent --> Ready(["Ready"])
 ```
 
 **Diagram sources**
-- [report-editor.tsx:39-107](file://components/report-editor.tsx#L39-L107)
+- [report-editor.tsx:39-117](file://components/report-editor.tsx#L39-L117)
 
 **Section sources**
-- [report-editor.tsx:19-107](file://components/report-editor.tsx#L19-L107)
+- [report-editor.tsx:19-117](file://components/report-editor.tsx#L19-L117)
 
 ### Markdown Editor Integration
-The component uses a dynamic import of the markdown editor to disable server-side rendering. The editor is configured for live preview mode and fixed height, enabling real-time editing and review.
+The component uses a dynamic import of the markdown editor to disable server-side rendering. The editor is configured for responsive preview mode with automatic switching between edit and live preview based on screen width.
+
+**Enhanced** Mobile-first responsive behavior:
+- Mobile devices (< 768px): Uses "edit" preview mode for better touch interaction and performance
+- Desktop devices (≥ 768px): Uses "live" preview mode for real-time editing experience
+- Dynamic width detection ensures optimal user experience across all devices
 
 Key integration points:
 - Dynamic import with SSR disabled ensures client-only rendering.
-- Live preview mode provides immediate feedback as users type.
-- Height is fixed for consistent UX across devices.
+- Responsive preview mode provides optimal editing experience based on device type.
+- Fixed height of 420px ensures consistent layout across devices.
+- Color mode support for light/dark theme compatibility.
 
 **Section sources**
-- [report-editor.tsx:9-280](file://components/report-editor.tsx#L9-L280)
+- [report-editor.tsx:9-296](file://components/report-editor.tsx#L9-L296)
 
 ### API Integration Patterns
 The component interacts with multiple backend endpoints:
@@ -205,7 +222,7 @@ The component interacts with multiple backend endpoints:
   - Behavior: Sends content to external LLM API for refinement.
 
 **Section sources**
-- [report-editor.tsx:67-164](file://components/report-editor.tsx#L67-L164)
+- [report-editor.tsx:67-174](file://components/report-editor.tsx#L67-L174)
 - [generate.route.ts:23-132](file://app/api/reports/generate/route.ts#L23-L132)
 - [reports.route.ts:9-76](file://app/api/reports/route.ts#L9-L76)
 - [templates.route.ts:7-24](file://app/api/templates/route.ts#L7-L24)
@@ -224,7 +241,7 @@ Integration with settings:
 - The editor reflects these changes immediately upon reload.
 
 **Section sources**
-- [report-editor.tsx:166-258](file://components/report-editor.tsx#L166-L258)
+- [report-editor.tsx:176-296](file://components/report-editor.tsx#L176-L296)
 - [settings-form.tsx:109-134](file://components/settings-form.tsx#L109-L134)
 - [projects.route.ts:21-41](file://app/api/gitlab/projects/route.ts#L21-L41)
 
@@ -236,8 +253,8 @@ The component implements robust error handling and user feedback:
 - Disabled states for buttons when actions are not applicable.
 
 **Section sources**
-- [report-editor.tsx:260-271](file://components/report-editor.tsx#L260-L271)
-- [report-editor.tsx:67-164](file://components/report-editor.tsx#L67-L164)
+- [report-editor.tsx:260-296](file://components/report-editor.tsx#L260-L296)
+- [report-editor.tsx:67-174](file://components/report-editor.tsx#L67-L174)
 
 ### Lifecycle Hooks and Dependencies
 - useEffect for initial configuration loading and date-based report loading.
@@ -246,11 +263,12 @@ The component implements robust error handling and user feedback:
 
 Performance considerations:
 - Concurrent loading of templates and projects.
-- Conditional generation only when needed (today’s date vs. existing report).
+- Conditional generation only when needed (today's date vs. existing report).
 - Debounced or deferred generation to avoid blocking the UI thread.
+- **Enhanced** Responsive preview mode switching reduces unnecessary computations on mobile devices.
 
 **Section sources**
-- [report-editor.tsx:93-107](file://components/report-editor.tsx#L93-L107)
+- [report-editor.tsx:93-117](file://components/report-editor.tsx#L93-L117)
 - [report-editor.tsx:39-53](file://components/report-editor.tsx#L39-L53)
 
 ### Data Flow and Processing Logic
@@ -361,12 +379,12 @@ class ReportEditorState {
 ```
 
 **Diagram sources**
-- [report-editor.tsx:11-17](file://components/report-editor.tsx#L11-L17)
+- [report-editor.tsx:11-19](file://components/report-editor.tsx#L11-L19)
 - [report.ts:4-27](file://lib/report.ts#L4-L27)
 - [gitlab.ts:14-34](file://lib/gitlab.ts#L14-L34)
 
 **Section sources**
-- [report-editor.tsx:11-17](file://components/report-editor.tsx#L11-L17)
+- [report-editor.tsx:11-19](file://components/report-editor.tsx#L11-L19)
 - [report.ts:4-27](file://lib/report.ts#L4-L27)
 - [gitlab.ts:14-34](file://lib/gitlab.ts#L14-L34)
 
@@ -375,26 +393,72 @@ The component organizes controls and content in a responsive layout:
 - Top toolbar: date selector, template dropdown, action buttons (generate, AI polish, copy, save).
 - Project selection panel: enabled projects with branch indicators and toggle buttons.
 - Error banner: aggregated project errors during generation.
-- Markdown editor: live preview with fixed height.
+- Markdown editor: responsive preview with fixed height and automatic mode switching.
+
+**Enhanced** Mobile-responsive layout considerations:
+- Flexible flexbox layout adapts to different screen sizes.
+- Responsive breakpoints for optimal spacing and readability.
+- Touch-friendly button sizing and spacing for mobile interaction.
+- Adaptive preview mode selection based on device capabilities.
 
 Styling utilities:
 - Tailwind classes for spacing, borders, and color states.
 - cn helper for conditional class merging.
 
 **Section sources**
-- [report-editor.tsx:172-280](file://components/report-editor.tsx#L172-L280)
+- [report-editor.tsx:182-296](file://components/report-editor.tsx#L182-L296)
 - [utils.ts:4-6](file://lib/utils.ts#L4-L6)
 
 ### Integration with Settings and Project Management
 Project enablement and branch settings are managed in the settings page and reflected in the editor:
 - SettingsForm toggles project enablement and sets default branches.
 - Changes propagate to the database and are immediately visible in the editor.
-- The editor’s project panel shows enabled projects and branch information.
+- The editor's project panel shows enabled projects and branch information.
 
 **Section sources**
 - [settings-form.tsx:109-134](file://components/settings-form.tsx#L109-L134)
 - [projects.route.ts:21-41](file://app/api/gitlab/projects/route.ts#L21-L41)
-- [report-editor.tsx:231-258](file://components/report-editor.tsx#L231-L258)
+- [report-editor.tsx:231-296](file://components/report-editor.tsx#L231-L296)
+
+## Mobile Responsiveness Enhancement
+
+### Automatic Preview Mode Switching
+The ReportEditor component now features intelligent mobile responsiveness with automatic preview mode switching:
+
+**Desktop Experience (≥ 768px)**:
+- Live preview mode provides real-time editing feedback
+- Immediate visual updates as users type
+- Optimal for detailed content review and editing
+- Full markdown rendering capabilities
+
+**Mobile Experience (< 768px)**:
+- Edit mode for better touch interaction
+- Improved scrolling and navigation performance
+- Optimized for single-hand operation
+- Reduced computational overhead
+
+### Implementation Details
+The responsive behavior is implemented through dynamic width detection:
+
+```javascript
+preview={typeof window !== "undefined" && window.innerWidth < 768 ? "edit" : "live"}
+```
+
+This approach ensures:
+- **Client-side only**: Prevents SSR conflicts by checking `typeof window !== "undefined"`
+- **Real-time adaptation**: Responds to viewport changes without page refresh
+- **Performance optimization**: Uses edit mode on mobile to reduce rendering overhead
+- **User experience**: Provides optimal interaction patterns for each device type
+
+### Design Philosophy
+The mobile-first approach prioritizes:
+- **Touch interaction**: Larger touch targets and simplified interface
+- **Performance**: Reduced computational load on mobile devices
+- **Accessibility**: Clear visual feedback and intuitive controls
+- **Consistency**: Seamless experience across all device categories
+
+**Section sources**
+- [report-editor.tsx:285-296](file://components/report-editor.tsx#L285-L296)
 
 ## Dependency Analysis
 The component depends on:
@@ -404,7 +468,7 @@ The component depends on:
 - Backend APIs for configuration, generation, persistence, templates, projects, and AI polishing.
 
 External dependencies:
-- @uiw/react-md-editor for markdown editing with live preview.
+- @uiw/react-md-editor for markdown editing with responsive preview.
 - dayjs for date manipulation.
 - react-hot-toast for user feedback.
 - clsx and tailwind-merge for class composition.
@@ -436,8 +500,7 @@ RE --> CN
 - Conditional generation: Auto-generation is deferred until configuration is loaded and only performed when no existing report exists for the selected date.
 - Debounced operations: Generation is triggered after configuration load to prevent race conditions.
 - UI responsiveness: Loading states and disabled buttons prevent concurrent operations and improve perceived performance.
-
-[No sources needed since this section provides general guidance]
+- **Enhanced** Mobile optimization: Edit mode on mobile devices reduces computational overhead and improves responsiveness.
 
 ## Troubleshooting Guide
 Common issues and resolutions:
@@ -446,17 +509,16 @@ Common issues and resolutions:
 - AI polish failures: Ensure LLM API base and key are configured; verify network connectivity.
 - Project fetch errors: Review the error banner for specific project failures; check project enablement and branch settings.
 - Save failures: Verify content length and date format; ensure the backend responds successfully.
+- **Enhanced** Mobile preview issues: If preview mode seems incorrect, ensure the device width is properly detected; check browser compatibility for window.innerWidth property.
 
 **Section sources**
 - [generate.route.ts:36-43](file://app/api/reports/generate/route.ts#L36-L43)
 - [report.ts:137-144](file://lib/report.ts#L137-L144)
 - [polish.route.ts:14-22](file://app/api/ai/polish/route.ts#L14-L22)
-- [report-editor.tsx:260-271](file://components/report-editor.tsx#L260-L271)
+- [report-editor.tsx:260-296](file://components/report-editor.tsx#L260-L296)
 
 ## Conclusion
-The ReportEditor component provides a cohesive, efficient solution for daily report generation and editing. Its state-driven architecture, robust API integrations, and thoughtful UI feedback deliver a smooth user experience. The modular design enables easy customization and extension, while the backend pipeline ensures reliable data processing and templating.
-
-[No sources needed since this section summarizes without analyzing specific files]
+The ReportEditor component provides a cohesive, efficient solution for daily report generation and editing. Its state-driven architecture, robust API integrations, and thoughtful UI feedback deliver a smooth user experience. The recent mobile responsiveness enhancements ensure optimal performance and usability across all device types, while the modular design enables easy customization and extension, and the backend pipeline ensures reliable data processing and templating.
 
 ## Appendices
 
@@ -567,6 +629,7 @@ The ReportEditor component provides a cohesive, efficient solution for daily rep
 - AI enhancement: Configure LLM environment variables to enable AI polishing; customize system prompts for desired output style.
 - Styling: Extend Tailwind classes and the cn helper to adapt the UI to brand guidelines.
 - State expansion: Add new state fields for additional filters or metadata; ensure proper validation and error handling.
+- **Enhanced** Mobile customization: Adjust breakpoint thresholds, preview mode behavior, and mobile-specific styling through responsive design patterns.
 
 **Section sources**
 - [templates.route.ts:27-95](file://app/api/templates/route.ts#L27-L95)

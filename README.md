@@ -51,13 +51,13 @@
 
 - Node.js >= 18
 - MySQL 5.7+ 或 8.x
-- npm（本项目使用 npm，非 pnpm）
+- pnpm（本项目使用 pnpm）
 
 ### 安装步骤
 
 ```bash
 # 1. 安装依赖
-npm install
+pnpm install
 
 # 2. 配置环境变量
 cp .env.example .env
@@ -67,11 +67,11 @@ cp .env.example .env
 npx prisma migrate dev
 
 # 4. 创建初始管理员账户
-npm run seed
+pnpm seed
 # 默认账户：admin / admin12345
 
 # 5. 启动开发服务器
-npm run dev
+pnpm dev
 ```
 
 打开 http://localhost:3000，使用 `admin` / `admin12345` 登录。登录后请立即在用户管理中修改密码。
@@ -80,11 +80,12 @@ npm run dev
 
 | 命令 | 用途 |
 |------|------|
-| `npm run dev` | 启动开发服务器（热更新） |
-| `npm run build` | 构建生产版本 |
-| `npm run start` | 启动生产服务器 |
-| `npm run lint` | ESLint 代码检查 |
-| `npm run seed` | 初始化管理员账户 |
+| `pnpm dev` | 启动开发服务器（热更新） |
+| `pnpm build` | 构建生产版本 |
+| `pnpm start` | 启动生产服务器 |
+| `pnpm lint` | ESLint 代码检查 |
+| `pnpm test` | 运行单元测试 |
+| `pnpm seed` | 初始化管理员账户 |
 | `npx prisma studio` | 打开 Prisma 数据库可视化工具 |
 | `npx prisma migrate dev` | 创建并执行数据库迁移 |
 

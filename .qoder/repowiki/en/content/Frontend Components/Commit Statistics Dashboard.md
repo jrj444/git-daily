@@ -25,12 +25,10 @@
 
 ## Update Summary
 **Changes Made**
-- **New Weekly Statistics Component**: Added WeeklyStats component (components/weekly-stats.tsx) providing 7-day rolling summaries
-- **Enhanced Dashboard Integration**: WeeklyStats integrates with existing StatsContent component for consistent visualization
-- **Home Page Integration**: WeeklyStats component added to the main application homepage for quick insights
-- **Compact Visualization Mode**: StatsContent component enhanced with compact property for reduced UI footprint
-- **Real-time Data Fetching**: WeeklyStats automatically calculates 7-day date range and fetches statistics
-- **Quick Access Navigation**: Users can navigate from weekly view to full statistics page for detailed analysis
+- **Improved Weekly Statistics Calculation**: Updated weekly statistics from 7-day rolling window to consistent Monday-Sunday weekly cycles with standardized date calculation logic
+- **Enhanced Error Messaging**: Corrected error message from Chinese "最近 7 天暂无提交记录" to English "本周暂无提交记录" for better internationalization
+- **Standardized Date Calculation**: Both WeeklyStats and StatsView now use identical Monday calculation logic for consistent weekly cycle handling
+- **Maintained Component Architecture**: Preserved existing component structure while improving date handling consistency
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -47,7 +45,7 @@
 ## Introduction
 The Commit Statistics Dashboard is a specialized feature within the Pingyun Report system that provides developers with comprehensive insights into their GitLab commit patterns over customizable date ranges. This dashboard enables users to analyze commit types, distribution across projects, and productivity trends, supporting data-driven development practices and performance monitoring.
 
-The dashboard integrates seamlessly with the broader Pingyun Report ecosystem, leveraging encrypted GitLab tokens, conventional commit parsing, and comprehensive filtering capabilities to deliver accurate and meaningful statistics with enhanced commit detail visibility. The architecture has been significantly refactored to improve modularity, reusability, and maintainability, now featuring a new weekly statistics component for quick insights into recent productivity patterns.
+The dashboard integrates seamlessly with the broader Pingyun Report ecosystem, leveraging encrypted GitLab tokens, conventional commit parsing, and comprehensive filtering capabilities to deliver accurate and meaningful statistics with enhanced commit detail visibility. The architecture has been significantly refactored to improve modularity, reusability, and maintainability, now featuring a new weekly statistics component for quick insights into recent productivity patterns with improved date calculation consistency.
 
 ## Project Structure
 The Commit Statistics Dashboard follows a modular architecture with clear separation of concerns, now featuring dedicated layers for computation, presentation, API handling, and quick-access dashboards:
@@ -96,7 +94,7 @@ StatsAPI --> ReportsAPI
 - [app/stats/page.tsx:1-21](file://app/stats/page.tsx#L1-L21)
 - [components/stats-view.tsx:1-170](file://components/stats-view.tsx#L1-L170)
 - [components/stats-content.tsx:1-225](file://components/stats-content.tsx#L1-L225)
-- [components/weekly-stats.tsx:1-118](file://components/weekly-stats.tsx#L1-L118)
+- [components/weekly-stats.tsx:1-121](file://components/weekly-stats.tsx#L1-L121)
 - [app/api/stats/commits/route.ts:1-54](file://app/api/stats/commits/route.ts#L1-L54)
 - [lib/stats.ts:1-144](file://lib/stats.ts#L1-L144)
 - [app/page.tsx:1-22](file://app/page.tsx#L1-L22)
@@ -111,17 +109,18 @@ The Commit Statistics Dashboard now consists of five primary components organize
 ### Frontend Interface Components
 The StatsView component serves as the main interactive interface, delegating presentation responsibilities to StatsContent:
 
-- **StatsView**: Handles user interaction, date range selection, loading states, and API communication
+- **StatsView**: Handles user interaction, date range selection, loading states, and API communication with standardized Monday calculation logic
 - **StatsContent**: Pure presentation component responsible for all visualization logic with expandable sections
-- **WeeklyStats**: New component providing 7-day rolling summaries with compact visualization mode
+- **WeeklyStats**: New component providing consistent weekly cycle summaries with compact visualization mode
 
 ### Quick Access Dashboard
-The WeeklyStats component provides immediate insights into recent productivity patterns:
+The WeeklyStats component provides immediate insights into recent productivity patterns with improved date calculation consistency:
 
-- **Automatic Date Range**: Calculates 7-day rolling window (current day + 6 previous days)
+- **Standardized Date Range**: Calculates consistent Monday-Sunday weekly cycles using identical logic as StatsView
 - **Compact Visualization**: Uses StatsContent with compact property for reduced UI footprint
 - **Quick Navigation**: Links to full statistics page for detailed analysis
 - **Summary Cards**: Displays key metrics (total commits, feature, bug fixes, refactors)
+- **Enhanced Error Messages**: Internationalized error messaging with English "本周暂无提交记录"
 
 ### Backend Processing
 The Stats Commits API handles data aggregation and delegates computation to the Stats library:
@@ -140,12 +139,12 @@ The system integrates with multiple data sources through a clean separation of c
 **Section sources**
 - [components/stats-view.tsx:20-170](file://components/stats-view.tsx#L20-L170)
 - [components/stats-content.tsx:56-225](file://components/stats-content.tsx#L56-L225)
-- [components/weekly-stats.tsx:9-118](file://components/weekly-stats.tsx#L9-L118)
+- [components/weekly-stats.tsx:9-121](file://components/weekly-stats.tsx#L9-L121)
 - [app/api/stats/commits/route.ts:16-54](file://app/api/stats/commits/route.ts#L16-L54)
 - [lib/stats.ts:69-144](file://lib/stats.ts#L69-L144)
 
 ## Architecture Overview
-The Commit Statistics Dashboard employs a clean layered architecture with clear separation of concerns and enhanced modularity, now including a dedicated weekly statistics component:
+The Commit Statistics Dashboard employs a clean layered architecture with clear separation of concerns and enhanced modularity, now including a dedicated weekly statistics component with improved date calculation consistency:
 
 ```mermaid
 sequenceDiagram
@@ -159,7 +158,8 @@ participant GitLab as GitLab API
 participant DB as Database
 User->>HomePage : Visit Application
 HomePage->>WeeklyStats : Render Weekly Stats
-WeeklyStats->>API : Fetch 7-day statistics
+WeeklyStats->>WeeklyStats : Calculate Monday-Sunday cycle
+WeeklyStats->>API : Fetch weekly statistics
 API->>DB : Load user configuration
 DB-->>API : User preferences & project settings
 API->>StatsLib : Compute user statistics
@@ -177,7 +177,7 @@ Note over User,DB : All operations secure & encrypted
 
 **Diagram sources**
 - [app/page.tsx:15-17](file://app/page.tsx#L15-L17)
-- [components/weekly-stats.tsx:14-35](file://components/weekly-stats.tsx#L14-L35)
+- [components/weekly-stats.tsx:14-38](file://components/weekly-stats.tsx#L14-L38)
 - [components/stats-content.tsx:56-68](file://components/stats-content.tsx#L56-L68)
 - [app/api/stats/commits/route.ts:44-52](file://app/api/stats/commits/route.ts#L44-L52)
 - [lib/stats.ts:69-144](file://lib/stats.ts#L69-L144)
@@ -190,12 +190,13 @@ The architecture ensures:
 - **Security**: GitLab tokens remain server-side, encrypted at rest
 - **Performance**: Parallel commit fetching across projects with detailed metadata
 - **Extensibility**: Modular design supporting future enhancements
-- **Quick Insights**: WeeklyStats provides immediate 7-day rolling summaries
+- **Consistent Date Handling**: Standardized Monday calculation logic across all components
+- **Quick Insights**: WeeklyStats provides immediate weekly cycle summaries
 
 ## Detailed Component Analysis
 
 ### StatsView Component
-The StatsView component now focuses solely on user interaction and API communication, delegating all visualization to StatsContent:
+The StatsView component now focuses solely on user interaction and API communication, delegating all visualization to StatsContent with standardized date calculation:
 
 ```mermaid
 classDiagram
@@ -218,16 +219,22 @@ class SummaryCard {
 +number value
 +string color
 }
+class DateCalculation {
++getMonday() string
++calculateWeeklyRange() void
+}
 StatsView --> StatsContent : renders
 StatsView --> SummaryCard : uses
+StatsView --> DateCalculation : uses
 ```
 
 **Diagram sources**
 - [components/stats-view.tsx:20-170](file://components/stats-view.tsx#L20-L170)
 - [components/stats-content.tsx:56-225](file://components/stats-content.tsx#L56-L225)
+- [components/stats-view.tsx:11-16](file://components/stats-view.tsx#L11-L16)
 
 Key features include:
-- **Date Range Management**: Validates and manages date selection with default week-based ranges
+- **Standardized Date Range Management**: Uses getMonday() function for consistent Monday calculation
 - **Loading States**: Comprehensive loading indicators and error handling
 - **API Communication**: Handles fetch requests and response processing
 - **Summary Cards**: Displays key metrics (total commits, feature, bug fixes, refactors)
@@ -287,7 +294,7 @@ Key features include:
 - [components/stats-content.tsx:56-225](file://components/stats-content.tsx#L56-L225)
 
 ### WeeklyStats Component
-The new WeeklyStats component provides immediate insights into recent productivity patterns with automatic 7-day rolling calculations:
+The new WeeklyStats component provides immediate insights into recent productivity patterns with improved date calculation consistency:
 
 ```mermaid
 classDiagram
@@ -303,24 +310,30 @@ class SummaryCard {
 +number value
 +string color
 }
+class DateCalculation {
++getMonday() string
++calculateWeeklyRange() void
+}
 WeeklyStats --> SummaryCard : renders
 WeeklyStats --> StatsContent : renders with compact=true
+WeeklyStats --> DateCalculation : uses
 ```
 
 **Diagram sources**
-- [components/weekly-stats.tsx:9-118](file://components/weekly-stats.tsx#L9-L118)
+- [components/weekly-stats.tsx:9-121](file://components/weekly-stats.tsx#L9-L121)
 
 Key features include:
-- **Automatic Date Calculation**: Computes 7-day rolling window (current day + 6 previous days)
+- **Standardized Date Calculation**: Uses identical Monday calculation logic as StatsView
 - **Real-time Data Fetching**: Automatically loads statistics on component mount
 - **Loading States**: Comprehensive loading indicators and error handling
 - **Summary Cards**: Displays key metrics (total commits, feature, bug fixes, refactors)
 - **Quick Navigation**: Link to full statistics page for detailed analysis
 - **Compact Visualization**: Uses StatsContent with compact property for reduced UI footprint
+- **Enhanced Error Handling**: Internationalized error messages with English "本周暂无提交记录"
 - **Empty State Handling**: Displays appropriate messages when no commits are found
 
 **Section sources**
-- [components/weekly-stats.tsx:9-118](file://components/weekly-stats.tsx#L9-L118)
+- [components/weekly-stats.tsx:9-121](file://components/weekly-stats.tsx#L9-L121)
 
 ### Stats Library
 The lib/stats.ts module contains all core statistics computation logic with comprehensive type definitions:
@@ -370,6 +383,22 @@ Return --> End
 
 ## Enhanced Features
 
+### Improved Date Calculation Consistency
+The refactored architecture now provides consistent weekly cycle handling across all components:
+
+- **Standardized Monday Calculation**: Both WeeklyStats and StatsView use identical getMonday() function
+- **Consistent Weekly Cycles**: All components calculate date ranges using the same Monday-Sunday logic
+- **Improved Accuracy**: Eliminates edge case issues with 7-day rolling windows
+- **Better User Experience**: Predictable weekly cycle behavior across the application
+- **Reduced Complexity**: Single source of truth for date calculation logic
+
+### Enhanced Error Messaging
+The error handling has been improved with better internationalization:
+
+- **Internationalized Messages**: Error messages now use English "本周暂无提交记录" for better global accessibility
+- **Consistent Formatting**: Standardized error message format across all components
+- **Better User Experience**: Clearer error communication for international users
+
 ### Modular Architecture Benefits
 The refactored architecture provides several key benefits:
 
@@ -378,6 +407,7 @@ The refactored architecture provides several key benefits:
 - **Testability**: Core computation logic isolated in lib/stats.ts for easier unit testing
 - **Maintainability**: Clear boundaries between components and libraries
 - **Extensibility**: Easy to add new visualization types or modify presentation logic
+- **Consistent Date Handling**: Standardized date calculation across all components
 - **Quick Access**: WeeklyStats provides immediate insights without complex setup
 
 ### Enhanced Type Safety
@@ -396,8 +426,9 @@ The separation of concerns enhances the user experience:
 - **Better Performance**: Reduced re-renders through component separation
 - **Consistent Behavior**: Clear separation between user interaction and data presentation
 - **Enhanced Accessibility**: Better semantic structure with dedicated components
-- **Immediate Insights**: WeeklyStats provides instant 7-day rolling summaries
+- **Immediate Insights**: WeeklyStats provides instant weekly cycle summaries
 - **Quick Navigation**: Seamless transition from weekly view to detailed statistics
+- **Predictable Date Handling**: Consistent weekly cycle behavior across all components
 
 ### Compact Visualization Mode
 The StatsContent component now supports compact mode for reduced UI footprint:
@@ -409,7 +440,7 @@ The StatsContent component now supports compact mode for reduced UI footprint:
 
 **Section sources**
 - [components/stats-content.tsx:1-225](file://components/stats-content.tsx#L1-L225)
-- [components/weekly-stats.tsx:1-118](file://components/weekly-stats.tsx#L1-L118)
+- [components/weekly-stats.tsx:1-121](file://components/weekly-stats.tsx#L1-L121)
 - [lib/stats.ts:1-144](file://lib/stats.ts#L1-L144)
 
 ## Dependency Analysis
@@ -487,13 +518,14 @@ The refactored architecture maintains and improves performance through several o
 - **Minimal Re-renders**: Clear component boundaries reduce unnecessary re-renders
 - **Optimized State Management**: Separate state management for UI vs. data
 - **Compact Mode Efficiency**: WeeklyStats uses compact mode to reduce DOM complexity
+- **Consistent Date Calculation**: Standardized date logic reduces computational overhead
 
 ### Enhanced Data Processing
 - **Centralized Computation**: All statistics logic in lib/stats.ts for better optimization
 - **Parallel Processing**: Maintained parallel commit fetching across projects
 - **Efficient Sorting**: Optimized sorting algorithms for large datasets
 - **Memory Management**: Better memory usage through component separation
-- **Automatic Date Range**: WeeklyStats optimizes API calls with precise 7-day windows
+- **Standardized Date Ranges**: WeeklyStats uses consistent date calculation for better performance
 
 ### Improved UI Performance
 - **Component Memoization**: StatsContent component designed for optimal memoization
@@ -501,13 +533,14 @@ The refactored architecture maintains and improves performance through several o
 - **Virtual Scrolling**: Potential for future virtual scrolling implementation
 - **State Optimization**: Minimal state updates for better React performance
 - **Compact Rendering**: WeeklyStats reduces UI complexity with compact mode
+- **Consistent Date Handling**: Standardized date calculation reduces UI complexity
 
 ### Data Processing Efficiency
 - **Streamlined Pipeline**: More efficient data processing pipeline in lib/stats.ts
 - **Reduced Complexity**: Simplified logic flow with clear separation of concerns
 - **Better Error Handling**: More granular error handling reduces performance overhead
 - **Optimized Data Structures**: Efficient use of Maps and Sets for deduplication
-- **Automatic Optimization**: WeeklyStats automatically optimizes date ranges for better performance
+- **Standardized Date Ranges**: Consistent date calculation across all components
 
 ## Troubleshooting Guide
 
@@ -532,7 +565,8 @@ The refactored architecture maintains and improves performance through several o
 - Review console for JavaScript errors
 - Ensure API endpoint is reachable
 - Check browser network tab for failed requests
-- **WeeklyStats Specific**: Verify automatic date calculation is working correctly
+- **WeeklyStats Specific**: Verify standardized date calculation is working correctly
+- **Date Calculation Issues**: Check that getMonday() function returns correct Monday date
 
 **Performance Issues**
 - Monitor API response times for individual projects
@@ -540,7 +574,7 @@ The refactored architecture maintains and improves performance through several o
 - Review browser developer tools for memory leaks
 - Verify commit count thresholds for large date ranges
 - Consider reducing date range for better performance
-- **WeeklyStats Specific**: Check if 7-day rolling window is appropriate for user data
+- **WeeklyStats Specific**: Check if standardized date calculation is appropriate for user data
 
 **UI Display Issues**
 - Clear browser cache and reload page
@@ -549,6 +583,7 @@ The refactored architecture maintains and improves performance through several o
 - Ensure React Hot Toast is functioning correctly
 - Check for CSS conflicts with other components
 - **WeeklyStats Specific**: Verify compact mode rendering is working correctly
+- **Error Message Issues**: Verify English error messages are displaying correctly
 
 **Component Issues**
 - Verify StatsView and StatsContent components are properly imported
@@ -556,7 +591,8 @@ The refactored architecture maintains and improves performance through several o
 - Ensure StatsContent receives valid StatsData structure
 - Verify StatsView correctly handles API response data
 - Check for proper error handling in component lifecycle
-- **WeeklyStats Specific**: Verify automatic date calculation and data fetching
+- **WeeklyStats Specific**: Verify standardized date calculation and data fetching
+- **Date Calculation Issues**: Verify getMonday() function works consistently across components
 
 **Statistics Computation Issues**
 - Verify lib/stats.ts exports computeUserStats function
@@ -564,7 +600,14 @@ The refactored architecture maintains and improves performance through several o
 - Ensure StatsView correctly processes API responses
 - Verify type definitions match actual data structures
 - Check for proper error handling in computeUserStats
-- **WeeklyStats Specific**: Verify date range calculation and API parameter formatting
+- **WeeklyStats Specific**: Verify standardized date range calculation and API parameter formatting
+- **Date Calculation Issues**: Verify Monday calculation logic consistency across components
+
+**Internationalization Issues**
+- Verify error messages are properly localized
+- Check that English error messages display correctly
+- Ensure consistent message formatting across components
+- Verify proper handling of non-Chinese locales
 
 **Section sources**
 - [lib/session.ts:22-56](file://lib/session.ts#L22-L56)
@@ -575,8 +618,10 @@ The Commit Statistics Dashboard represents a comprehensive solution for develope
 
 The significant architectural improvements, including the extraction of statistics computation logic to lib/stats.ts, the creation of the reusable StatsContent component, and the addition of the new WeeklyStats component, demonstrate best practices in modern web development. The clean separation of concerns ensures maintainability, scalability, and enhanced user experience.
 
-The new weekly statistics dashboard component provides immediate 7-day rolling summaries, complementing the existing full statistics page with quick insights into recent productivity patterns. The integration with existing stats visualization infrastructure through the compact mode of StatsContent ensures consistency and reusability across the application.
+The new weekly statistics dashboard component provides immediate weekly cycle summaries with improved date calculation consistency, complementing the existing full statistics page with quick insights into recent productivity patterns. The integration with existing stats visualization infrastructure through the compact mode of StatsContent ensures consistency and reusability across the application.
+
+The standardized Monday calculation logic ensures predictable weekly cycle behavior across all components, eliminating edge case issues with 7-day rolling windows. The enhanced error messaging with internationalized English messages improves user experience for global audiences.
 
 The dashboard's extensible design supports future enhancements, including additional visualization types, export capabilities, virtual scrolling for large commit lists, and integration with other development tools. The modular architecture ensures that new features can be added without disrupting existing functionality.
 
-The implementation showcases excellent engineering practices, including proper error handling, responsive design, accessibility considerations, and performance optimization strategies that scale with growing user bases and larger datasets. The refactored architecture positions the dashboard for continued evolution and enhancement within the Pingyun Report ecosystem, now providing both detailed analysis capabilities and quick access to recent productivity insights.
+The implementation showcases excellent engineering practices, including proper error handling, responsive design, accessibility considerations, and performance optimization strategies that scale with growing user bases and larger datasets. The refactored architecture positions the dashboard for continued evolution and enhancement within the Pingyun Report ecosystem, now providing both detailed analysis capabilities and quick access to recent productivity insights with improved date calculation consistency.
