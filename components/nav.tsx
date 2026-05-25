@@ -6,6 +6,7 @@ import { signOut } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { NotificationBell } from "@/components/notification-bell";
 
 type Props = {
   user: { username: string; role: "MEMBER" | "ADMIN" };
@@ -63,8 +64,8 @@ export function Nav({ user }: Props) {
     <header className="border-b border-border bg-card relative" ref={menuRef}>
       <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-4 md:gap-6">
         <Link href="/" className="flex items-center gap-2 font-semibold shrink-0">
-          <img src="/images/logo.png" alt="极报" className="w-6 h-6" />
-          <span>极报</span>
+          <img src="/images/logo.png" alt="GitDaily" className="w-6 h-6" />
+          <span>GitDaily</span>
         </Link>
 
         {/* Desktop nav */}
@@ -98,6 +99,7 @@ export function Nav({ user }: Props) {
         {/* Desktop user */}
         <div className="ml-auto hidden md:flex items-center gap-3 text-sm">
           <ThemeToggle />
+          <NotificationBell />
           <span className="text-muted-foreground">{user.username}</span>
           <button
             onClick={() => signOut({ callbackUrl: "/login" })}
@@ -161,6 +163,7 @@ export function Nav({ user }: Props) {
             <span className="text-muted-foreground">{user.username}</span>
             <div className="flex items-center gap-2">
               <ThemeToggle />
+              <NotificationBell />
               <button
                 onClick={() => signOut({ callbackUrl: "/login" })}
                 className="px-3 py-1.5 rounded hover:bg-muted"

@@ -5,12 +5,15 @@ import dynamic from "next/dynamic";
 import dayjs from "dayjs";
 import toast from "react-hot-toast";
 import { useTheme } from "next-themes";
+import { useSession } from "next-auth/react";
 import {
   MemberFilterBar,
   filterMembers,
   type MemberRole,
   type RoleFilter,
 } from "./member-filter";
+import { CommentSection } from "@/components/comment-section";
+import { LikeButton } from "@/components/like-button";
 
 const MDPreview = dynamic(
   () =>
@@ -42,6 +45,7 @@ export function ReportsTab() {
   const [role, setRole] = useState<RoleFilter>("ALL");
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const { data: session } = useSession();
 
   const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -173,6 +177,14 @@ export function ReportsTab() {
                 {new Date(activeRow.report.updatedAt).toLocaleString()}
               </div>
               <MDPreview source={activeRow.report.content} />
+              <div className="mt-3 flex items-center gap-2">
+                <LikeButton reportId={activeRow.report.id} />
+              </div>
+              <CommentSection
+                reportId={activeRow.report.id}
+                currentUserId={session?.user?.id}
+                isAdmin={session?.user?.role === "ADMIN"}
+              />
             </div>
           )}
         </div>

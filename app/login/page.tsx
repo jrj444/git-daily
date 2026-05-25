@@ -47,7 +47,7 @@ export default function LoginPage() {
       <div className="relative w-full max-w-sm">
         {/* Branding */}
         <div className="flex flex-col items-center mb-6">
-          <img src="/images/logo.png" alt="极报" className="w-20 h-20 mb-3 rounded-xl shadow-lg shadow-primary/20" />
+          <img src="/images/logo.png" alt="GitDaily" className="w-20 h-20 mb-3 rounded-xl shadow-lg shadow-primary/20" />
           <h1 className="text-2xl font-semibold tracking-tight">GitDaily</h1>
           <p className="text-sm text-muted-foreground mt-1">
             GitLab 日报生成 | 代码统计

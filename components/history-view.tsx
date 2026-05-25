@@ -5,7 +5,10 @@ import dynamic from "next/dynamic";
 import dayjs from "dayjs";
 import toast from "react-hot-toast";
 import { useTheme } from "next-themes";
+import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
+import { CommentSection } from "@/components/comment-section";
+import { LikeButton } from "@/components/like-button";
 
 const MDEditor = dynamic(() => import("@uiw/react-md-editor"), { ssr: false });
 const MDPreview = dynamic(
@@ -20,8 +23,10 @@ export function HistoryView() {
   const [summaries, setSummaries] = useState<ReportSummary[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(dayjs().format("YYYY-MM-DD"));
   const [content, setContent] = useState("");
+  const [reportId, setReportId] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const { data: session } = useSession();
 
   // Export state
   const [showExport, setShowExport] = useState(true);
@@ -67,6 +72,7 @@ export function HistoryView() {
     const res = await fetch(`/api/reports?date=${d}`);
     const data = await res.json();
     setContent(data?.report?.content || "");
+    setReportId(data?.report?.id || null);
   }
 
   async function save() {
@@ -160,7 +166,10 @@ export function HistoryView() {
     if (selectedDate) {
       fetch(`/api/reports?date=${selectedDate}`)
         .then((res) => res.json())
-        .then((data) => setContent(data?.report?.content || ""));
+        .then((data) => {
+          setContent(data?.report?.content || "");
+          setReportId(data?.report?.id || null);
+        });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -319,6 +328,18 @@ export function HistoryView() {
             ) : (
               <div data-color-mode={colorMode} className="p-4">
                 <MDPreview source={content || "*暂无内容*"} />
+                {reportId && (
+                  <div className="mt-3 flex items-center gap-2">
+                    <LikeButton reportId={reportId} />
+                  </div>
+                )}
+                {reportId && (
+                  <CommentSection
+                    reportId={reportId}
+                    currentUserId={session?.user?.id}
+                    isAdmin={session?.user?.role === "ADMIN"}
+                  />
+                )}
               </div>
             )}
           </div>
