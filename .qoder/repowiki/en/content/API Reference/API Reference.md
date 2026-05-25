@@ -8,9 +8,14 @@
 - [app/api/admin/users/route.ts](file://app/api/admin/users/route.ts)
 - [app/api/ai/polish/route.ts](file://app/api/ai/polish/route.ts)
 - [app/api/auth[...nextauth]/route.ts](file://app/api/auth[...nextauth]/route.ts)
+- [app/api/comments/route.ts](file://app/api/comments/route.ts)
 - [app/api/gitlab/projects/route.ts](file://app/api/gitlab/projects/route.ts)
 - [app/api/gitlab/validate-token/route.ts](file://app/api/gitlab/validate-token/route.ts)
+- [app/api/likes/route.ts](file://app/api/likes/route.ts)
 - [app/api/me/route.ts](file://app/api/me/route.ts)
+- [app/api/notifications/route.ts](file://app/api/notifications/route.ts)
+- [app/api/notifications/stream/route.ts](file://app/api/notifications/stream/route.ts)
+- [app/api/reports/export/route.ts](file://app/api/reports/export/route.ts)
 - [app/api/reports/generate/route.ts](file://app/api/reports/generate/route.ts)
 - [app/api/reports/route.ts](file://app/api/reports/route.ts)
 - [app/api/stats/commits/route.ts](file://app/api/stats/commits/route.ts)
@@ -21,23 +26,22 @@
 - [lib/gitlab.ts](file://lib/gitlab.ts)
 - [lib/report.ts](file://lib/report.ts)
 - [lib/stats.ts](file://lib/stats.ts)
+- [lib/notify.ts](file://lib/notify.ts)
+- [lib/redis.ts](file://lib/redis.ts)
 - [middleware.ts](file://middleware.ts)
-- [components/projects-manager.tsx](file://components/projects-manager.tsx)
-- [components/stats-view.tsx](file://components/stats-view.tsx)
-- [components/templates-manager.tsx](file://components/templates-manager.tsx)
-- [components/team/overview-tab.tsx](file://components/team/overview-tab.tsx)
-- [components/team/member-stats-tab.tsx](file://components/team/member-stats-tab.tsx)
 - [prisma/schema.prisma](file://prisma/schema.prisma)
 </cite>
 
 ## Update Summary
 **Changes Made**
-- Added new team reports range endpoint (`/api/admin/team-reports/range`) for team submission heatmaps
-- Added new team statistics endpoint (`/api/admin/stats/team`) for aggregated team commit analytics
-- Enhanced stats commits endpoint with admin override functionality via `userId` parameter
-- Improved error handling and validation across all admin endpoints
-- Added comprehensive team statistics dashboard with member ranking and commit type distribution
-- Enhanced team member statistics with individual user commit analysis
+- Added new Social Interaction category with three new API endpoints:
+  - Comments endpoint for report commenting system
+  - Likes endpoint for report liking/unliking with real-time notifications
+  - Notifications endpoint with SSE streaming for real-time user notifications
+- Enhanced notification system with Redis-based publish-subscribe for instant delivery
+- Added comprehensive access control for comments and likes (report owners and admins only)
+- Implemented real-time notification streaming via Server-Sent Events (SSE)
+- Added notification creation and delivery pipeline with Redis pub/sub integration
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -52,12 +56,13 @@
 10. [Appendices](#appendices)
 
 ## Introduction
-This document describes the Pingyun Report REST API surface implemented under the Next.js app router. It covers authentication via NextAuth.js, user self-service endpoints, admin-only endpoints, report CRUD and generation, GitLab integration, template management, statistics dashboard, and the AI polish endpoint for LLM-assisted report polishing. For each endpoint, we specify HTTP methods, URL patterns, request/response schemas, validation rules, error responses, and security requirements. Practical examples and integration guidelines are included.
+This document describes the Pingyun Report REST API surface implemented under the Next.js app router. It covers authentication via NextAuth.js, user self-service endpoints, admin-only endpoints, report CRUD and generation, GitLab integration, template management, statistics dashboard, social interaction features (comments, likes, notifications), and the AI polish endpoint for LLM-assisted report polishing. For each endpoint, we specify HTTP methods, URL patterns, request/response schemas, validation rules, error responses, and security requirements. Practical examples and integration guidelines are included.
 
 ## Project Structure
 The API is organized under app/api with feature-based grouping:
 - Authentication: NextAuth.js integration under app/api/auth[...nextauth]
 - User self-service: app/api/me, app/api/reports, app/api/templates, app/api/stats
+- Social Interaction: app/api/comments, app/api/likes, app/api/notifications
 - Admin: app/api/admin/{team-reports, users, stats}
 - GitLab integration: app/api/gitlab/{projects, validate-token}
 - AI polish: app/api/ai/polish
@@ -69,11 +74,16 @@ AUTH["auth[...nextauth]"]
 ME["me"]
 REPORTS["reports"]
 REPORTS_GEN["reports/generate"]
+REPORTS_EXPORT["reports/export"]
 STATS_COMMITS["stats/commits"]
 TEMPLATES["templates"]
 TEMPLATES_PREVIEW["templates/preview"]
 GITLAB_PROJ["gitlab/projects"]
 GITLAB_VALIDATE["gitlab/validate-token"]
+COMMENTS["comments"]
+LIKES["likes"]
+NOTIFICATIONS["notifications"]
+NOTIFICATIONS_STREAM["notifications/stream"]
 ADMIN_USERS["admin/users"]
 ADMIN_TEAM["admin/team-reports"]
 ADMIN_TEAM_RANGE["admin/team-reports/range"]
@@ -83,11 +93,16 @@ end
 AUTH --> ME
 ME --> REPORTS
 REPORTS --> REPORTS_GEN
+REPORTS --> REPORTS_EXPORT
 ME --> STATS_COMMITS
 ME --> TEMPLATES
 TEMPLATES --> TEMPLATES_PREVIEW
 ME --> GITLAB_PROJ
 ME --> GITLAB_VALIDATE
+ME --> COMMENTS
+ME --> LIKES
+ME --> NOTIFICATIONS
+NOTIFICATIONS --> NOTIFICATIONS_STREAM
 ADMIN_USERS --> ADMIN_TEAM
 ADMIN_TEAM --> ADMIN_TEAM_RANGE
 ADMIN_TEAM --> ADMIN_TEAM_STATS
@@ -99,11 +114,16 @@ ME --> AI_POLISH
 - [app/api/me/route.ts](file://app/api/me/route.ts)
 - [app/api/reports/route.ts](file://app/api/reports/route.ts)
 - [app/api/reports/generate/route.ts](file://app/api/reports/generate/route.ts)
+- [app/api/reports/export/route.ts](file://app/api/reports/export/route.ts)
 - [app/api/stats/commits/route.ts](file://app/api/stats/commits/route.ts)
 - [app/api/templates/route.ts](file://app/api/templates/route.ts)
 - [app/api/templates/preview/route.ts](file://app/api/templates/preview/route.ts)
 - [app/api/gitlab/projects/route.ts](file://app/api/gitlab/projects/route.ts)
 - [app/api/gitlab/validate-token/route.ts](file://app/api/gitlab/validate-token/route.ts)
+- [app/api/comments/route.ts](file://app/api/comments/route.ts)
+- [app/api/likes/route.ts](file://app/api/likes/route.ts)
+- [app/api/notifications/route.ts](file://app/api/notifications/route.ts)
+- [app/api/notifications/stream/route.ts](file://app/api/notifications/stream/route.ts)
 - [app/api/admin/users/route.ts](file://app/api/admin/users/route.ts)
 - [app/api/admin/team-reports/route.ts](file://app/api/admin/team-reports/route.ts)
 - [app/api/admin/team-reports/range/route.ts](file://app/api/admin/team-reports/range/route.ts)
@@ -114,11 +134,16 @@ ME --> AI_POLISH
 - [app/api/me/route.ts](file://app/api/me/route.ts)
 - [app/api/reports/route.ts](file://app/api/reports/route.ts)
 - [app/api/reports/generate/route.ts](file://app/api/reports/generate/route.ts)
+- [app/api/reports/export/route.ts](file://app/api/reports/export/route.ts)
 - [app/api/stats/commits/route.ts](file://app/api/stats/commits/route.ts)
 - [app/api/templates/route.ts](file://app/api/templates/route.ts)
 - [app/api/templates/preview/route.ts](file://app/api/templates/preview/route.ts)
 - [app/api/gitlab/projects/route.ts](file://app/api/gitlab/projects/route.ts)
 - [app/api/gitlab/validate-token/route.ts](file://app/api/gitlab/validate-token/route.ts)
+- [app/api/comments/route.ts](file://app/api/comments/route.ts)
+- [app/api/likes/route.ts](file://app/api/likes/route.ts)
+- [app/api/notifications/route.ts](file://app/api/notifications/route.ts)
+- [app/api/notifications/stream/route.ts](file://app/api/notifications/stream/route.ts)
 - [app/api/admin/users/route.ts](file://app/api/admin/users/route.ts)
 - [app/api/admin/team-reports/route.ts](file://app/api/admin/team-reports/route.ts)
 - [app/api/admin/team-reports/range/route.ts](file://app/api/admin/team-reports/range/route.ts)
@@ -129,16 +154,20 @@ ME --> AI_POLISH
 - [lib/gitlab.ts](file://lib/gitlab.ts)
 - [lib/report.ts](file://lib/report.ts)
 - [lib/stats.ts](file://lib/stats.ts)
+- [lib/notify.ts](file://lib/notify.ts)
+- [lib/redis.ts](file://lib/redis.ts)
 - [middleware.ts](file://middleware.ts)
 
 ## Core Components
 - Authentication and session: NextAuth.js with JWT strategy; server-side session retrieval and enforcement helpers.
 - Middleware: protects routes under "/", "/history/:path*", "/settings/:path*", "/admin/:path*".
 - Data validation: Zod schemas for request bodies and query parameters.
-- Persistence: Prisma ORM for user, report, template, and project entities.
+- Persistence: Prisma ORM for user, report, template, project, comment, like, and notification entities.
 - GitLab integration: server-only client for validating tokens, listing projects, and fetching commits.
 - Report rendering: Handlebars templating with conventional commit parsing and deduplication.
 - Statistics processing: Commit categorization and aggregation for dashboard visualization with enhanced error handling.
+- Social interaction system: Comments, likes, and notifications with real-time delivery via Redis pub/sub.
+- Real-time notifications: Server-Sent Events (SSE) streaming for instant notification delivery.
 
 **Section sources**
 - [lib/auth.ts](file://lib/auth.ts)
@@ -147,6 +176,8 @@ ME --> AI_POLISH
 - [lib/gitlab.ts](file://lib/gitlab.ts)
 - [lib/report.ts](file://lib/report.ts)
 - [lib/stats.ts](file://lib/stats.ts)
+- [lib/notify.ts](file://lib/notify.ts)
+- [lib/redis.ts](file://lib/redis.ts)
 
 ## Architecture Overview
 High-level flow for report generation and GitLab integration:
@@ -252,6 +283,18 @@ API-->>Client : {date, content, templateId, context, errors}
 
 **Section sources**
 - [app/api/reports/route.ts](file://app/api/reports/route.ts)
+
+#### GET /api/reports/export
+- Description: Export a report in various formats (PDF, HTML, Markdown).
+- Authentication: Required.
+- Query parameters:
+  - date: YYYY-MM-DD (required).
+  - format: "pdf"|"html"|"markdown" (default: pdf).
+- Response: Binary content of the exported report.
+- Notes: Returns appropriate Content-Type header based on format.
+
+**Section sources**
+- [app/api/reports/export/route.ts](file://app/api/reports/export/route.ts)
 
 #### GET /api/reports/generate
 - Description: Generate a report for a given date using configured GitLab projects and template.
@@ -457,6 +500,179 @@ API-->>Client : {date, content, templateId, context, errors}
 **Section sources**
 - [app/api/ai/polish/route.ts](file://app/api/ai/polish/route.ts)
 
+### Social Interaction Endpoints
+
+#### GET /api/comments
+- Description: List comments for a specific report with access control.
+- Authentication: Required.
+- Query parameters:
+  - reportId: string (required).
+- Access control:
+  - Report owner can view comments.
+  - Admin users can view comments for any report.
+- Response fields:
+  - comments: array of { id, content, createdAt, author: { id, username, displayName } }.
+- Error handling:
+  - Returns 400 if reportId is missing.
+  - Returns 403 Forbidden if user lacks permission.
+  - Returns 404 if report doesn't exist.
+
+**New** Added comprehensive comments endpoint with proper access control ensuring only authorized users can view report comments.
+
+**Section sources**
+- [app/api/comments/route.ts](file://app/api/comments/route.ts)
+- [prisma/schema.prisma](file://prisma/schema.prisma)
+
+#### POST /api/comments
+- Description: Create a new comment on a report with notification support.
+- Authentication: Required.
+- Request body:
+  - reportId: string (required).
+  - content: string (1–2000 characters).
+- Access control:
+  - Report owner can comment.
+  - Admin users can comment on any report.
+- Response fields:
+  - comment: { id, content, createdAt, author: { id, username, displayName } }.
+- Notification behavior:
+  - Creates notification for report owner when someone comments (excluding self-comments).
+  - Notification type: "comment" with formatted title including reporter username and date.
+- Error handling:
+  - Returns 400 if reportId or content is missing/invalid.
+  - Returns 403 Forbidden if user lacks permission.
+  - Returns 404 if report doesn't exist.
+
+**New** Added comments creation endpoint with automatic notification system for report owners.
+
+**Section sources**
+- [app/api/comments/route.ts](file://app/api/comments/route.ts)
+- [lib/notify.ts](file://lib/notify.ts)
+- [prisma/schema.prisma](file://prisma/schema.prisma)
+
+#### DELETE /api/comments
+- Description: Delete a comment with ownership verification.
+- Authentication: Required.
+- Query parameters:
+  - id: string (required).
+- Ownership verification:
+  - Comment author can delete their own comment.
+  - Admin users can delete any comment.
+- Response: { ok: true }.
+- Error handling:
+  - Returns 400 if id is missing.
+  - Returns 403 Forbidden if user lacks permission.
+  - Returns 404 if comment doesn't exist.
+
+**New** Added comments deletion endpoint with strict ownership verification and admin override capability.
+
+**Section sources**
+- [app/api/comments/route.ts](file://app/api/comments/route.ts)
+- [prisma/schema.prisma](file://prisma/schema.prisma)
+
+#### GET /api/likes
+- Description: Get like count and user's like status for a report.
+- Authentication: Required.
+- Query parameters:
+  - reportId: string (required).
+- Response fields:
+  - count: number (total likes for the report).
+  - liked: boolean (true if current user liked the report).
+- Error handling:
+  - Returns 400 if reportId is missing.
+  - Returns 404 if report doesn't exist.
+
+**New** Added likes retrieval endpoint providing both like count and user-specific like status.
+
+**Section sources**
+- [app/api/likes/route.ts](file://app/api/likes/route.ts)
+- [prisma/schema.prisma](file://prisma/schema.prisma)
+
+#### POST /api/likes
+- Description: Toggle like status for a report with notification support.
+- Authentication: Required.
+- Request body:
+  - reportId: string (required).
+- Like/unlike logic:
+  - If user previously liked: removes like.
+  - If user hasn't liked: creates like.
+- Notification behavior:
+  - Creates notification for report owner when someone likes their report (excluding self-likes).
+  - Notification type: "like" with formatted title including liker username and date.
+- Response fields:
+  - count: number (updated like count).
+  - liked: boolean (updated like status).
+- Error handling:
+  - Returns 400 if reportId is missing.
+  - Returns 403 Forbidden if user lacks permission.
+  - Returns 404 if report doesn't exist.
+
+**New** Added likes creation/deletion endpoint with automatic notification system for report owners.
+
+**Section sources**
+- [app/api/likes/route.ts](file://app/api/likes/route.ts)
+- [lib/notify.ts](file://lib/notify.ts)
+- [prisma/schema.prisma](file://prisma/schema.prisma)
+
+#### GET /api/notifications
+- Description: List user's notifications with unread count.
+- Authentication: Required.
+- Response fields:
+  - notifications: array of { id, type, title, body, read, relatedId, createdAt } (latest 30).
+  - unreadCount: number (count of unread notifications).
+- Notes:
+  - Results are ordered by creation time (newest first).
+  - Only returns user's own notifications.
+
+**New** Added notifications retrieval endpoint with pagination and unread count support.
+
+**Section sources**
+- [app/api/notifications/route.ts](file://app/api/notifications/route.ts)
+- [prisma/schema.prisma](file://prisma/schema.prisma)
+
+#### PATCH /api/notifications
+- Description: Mark notifications as read (single or all).
+- Authentication: Required.
+- Request body:
+  - Either:
+    - ids: array of notification IDs to mark as read.
+    - Or: all: true to mark all unread notifications as read.
+- Response: { ok: true }.
+- Notes:
+  - Only affects user's own notifications.
+  - Ignores non-existent or foreign notifications.
+
+**New** Added notifications marking endpoint supporting both individual and bulk read operations.
+
+**Section sources**
+- [app/api/notifications/route.ts](file://app/api/notifications/route.ts)
+- [prisma/schema.prisma](file://prisma/schema.prisma)
+
+#### GET /api/notifications/stream
+- Description: Server-Sent Events (SSE) stream for real-time notifications.
+- Authentication: Required.
+- Response: Server-Sent Events stream with JSON payloads containing:
+  - unreadCount: updated unread notification count.
+  - latest: array with single notification object.
+- Stream behavior:
+  - Initial heartbeat message establishes connection.
+  - Automatically subscribes to user-specific Redis channel.
+  - Maintains connection until client disconnects.
+  - Cleans up Redis subscription on disconnect.
+- Connection headers:
+  - Content-Type: text/event-stream
+  - Cache-Control: no-cache, no-transform
+  - Connection: keep-alive
+- Error handling:
+  - Returns 401 Unauthorized if no active session.
+  - Handles connection aborts gracefully.
+
+**New** Added real-time notifications streaming endpoint using Server-Sent Events with Redis pub/sub integration.
+
+**Section sources**
+- [app/api/notifications/stream/route.ts](file://app/api/notifications/stream/route.ts)
+- [lib/redis.ts](file://lib/redis.ts)
+- [lib/notify.ts](file://lib/notify.ts)
+
 ### Admin-Only Endpoints
 
 #### GET /api/admin/team-reports
@@ -491,7 +707,7 @@ API-->>Client : {date, content, templateId, context, errors}
   - Used by team overview dashboard for submission heatmaps.
   - Maximum 92-day range prevents excessive data loads.
 
-**New** Added comprehensive team reports range endpoint for team submission heatmaps and calendar-style visualization.
+**Updated** Enhanced with admin override functionality allowing administrators to query other users' commit statistics.
 
 **Section sources**
 - [app/api/admin/team-reports/range/route.ts](file://app/api/admin/team-reports/range/route.ts)
@@ -517,7 +733,7 @@ API-->>Client : {date, content, templateId, context, errors}
   - Individual project statistics are not returned; only aggregate totals.
   - Failed user statistics are skipped gracefully.
 
-**New** Added comprehensive team statistics endpoint for aggregated commit analytics and member ranking.
+**Updated** Enhanced with admin override functionality allowing administrators to query other users' commit statistics.
 
 **Section sources**
 - [app/api/admin/stats/team/route.ts](file://app/api/admin/stats/team/route.ts)
@@ -577,12 +793,17 @@ graph LR
 SESSION["lib/session.ts"] --> ROUTE_ME["app/api/me/route.ts"]
 SESSION --> ROUTE_REPORTS["app/api/reports/route.ts"]
 SESSION --> ROUTE_REPORTS_GEN["app/api/reports/generate/route.ts"]
+SESSION --> ROUTE_REPORTS_EXPORT["app/api/reports/export/route.ts"]
 SESSION --> ROUTE_STATS_COMMITS["app/api/stats/commits/route.ts"]
 SESSION --> ROUTE_TEMPLATES["app/api/templates/route.ts"]
 SESSION --> ROUTE_TEMPLATES_PREVIEW["app/api/templates/preview/route.ts"]
 SESSION --> ROUTE_GITLAB_PROJ["app/api/gitlab/projects/route.ts"]
 SESSION --> ROUTE_GITLAB_VALIDATE["app/api/gitlab/validate-token/route.ts"]
 SESSION --> ROUTE_AI["app/api/ai/polish/route.ts"]
+SESSION --> ROUTE_COMMENTS["app/api/comments/route.ts"]
+SESSION --> ROUTE_LIKES["app/api/likes/route.ts"]
+SESSION --> ROUTE_NOTIF["app/api/notifications/route.ts"]
+SESSION --> ROUTE_NOTIF_STREAM["app/api/notifications/stream/route.ts"]
 SESSION --> ROUTE_ADMIN_USERS["app/api/admin/users/route.ts"]
 SESSION --> ROUTE_ADMIN_TEAM["app/api/admin/team-reports/route.ts"]
 SESSION --> ROUTE_ADMIN_TEAM_RANGE["app/api/admin/team-reports/range/route.ts"]
@@ -592,12 +813,17 @@ MWARE["middleware.ts"] --> ROUTE_AUTH
 MWARE --> ROUTE_ME
 MWARE --> ROUTE_REPORTS
 MWARE --> ROUTE_REPORTS_GEN
+MWARE --> ROUTE_REPORTS_EXPORT
 MWARE --> ROUTE_STATS_COMMITS
 MWARE --> ROUTE_TEMPLATES
 MWARE --> ROUTE_TEMPLATES_PREVIEW
 MWARE --> ROUTE_GITLAB_PROJ
 MWARE --> ROUTE_GITLAB_VALIDATE
 MWARE --> ROUTE_AI
+MWARE --> ROUTE_COMMENTS
+MWARE --> ROUTE_LIKES
+MWARE --> ROUTE_NOTIF
+MWARE --> ROUTE_NOTIF_STREAM
 MWARE --> ROUTE_ADMIN_USERS
 MWARE --> ROUTE_ADMIN_TEAM
 MWARE --> ROUTE_ADMIN_TEAM_RANGE
@@ -608,11 +834,16 @@ GITLAB --> ROUTE_GITLAB_VALIDATE
 REPORT["lib/report.ts"] --> ROUTE_REPORTS_GEN
 REPORT --> ROUTE_STATS_COMMITS
 REPORT --> ROUTE_TEMPLATES_PREVIEW
+NOTIFY["lib/notify.ts"] --> ROUTE_COMMENTS
+NOTIFY --> ROUTE_LIKES
+NOTIFY --> ROUTE_NOTIF
+REDIS["lib/redis.ts"] --> ROUTE_NOTIF_STREAM
 STATS["lib/stats.ts"] --> ROUTE_STATS_COMMITS
 STATS --> ROUTE_ADMIN_TEAM_STATS
 PRISMA["Prisma ORM"] --> ROUTE_ME
 PRISMA --> ROUTE_REPORTS
 PRISMA --> ROUTE_REPORTS_GEN
+PRISMA --> ROUTE_REPORTS_EXPORT
 PRISMA --> ROUTE_STATS_COMMITS
 PRISMA --> ROUTE_TEMPLATES
 PRISMA --> ROUTE_TEMPLATES_PREVIEW
@@ -622,6 +853,9 @@ PRISMA --> ROUTE_ADMIN_USERS
 PRISMA --> ROUTE_ADMIN_TEAM
 PRISMA --> ROUTE_ADMIN_TEAM_RANGE
 PRISMA --> ROUTE_ADMIN_TEAM_STATS
+PRISMA --> ROUTE_COMMENTS
+PRISMA --> ROUTE_LIKES
+PRISMA --> ROUTE_NOTIF
 ```
 
 **Diagram sources**
@@ -631,15 +865,22 @@ PRISMA --> ROUTE_ADMIN_TEAM_STATS
 - [lib/gitlab.ts](file://lib/gitlab.ts)
 - [lib/report.ts](file://lib/report.ts)
 - [lib/stats.ts](file://lib/stats.ts)
+- [lib/notify.ts](file://lib/notify.ts)
+- [lib/redis.ts](file://lib/redis.ts)
 - [app/api/me/route.ts](file://app/api/me/route.ts)
 - [app/api/reports/route.ts](file://app/api/reports/route.ts)
 - [app/api/reports/generate/route.ts](file://app/api/reports/generate/route.ts)
+- [app/api/reports/export/route.ts](file://app/api/reports/export/route.ts)
 - [app/api/stats/commits/route.ts](file://app/api/stats/commits/route.ts)
 - [app/api/templates/route.ts](file://app/api/templates/route.ts)
 - [app/api/templates/preview/route.ts](file://app/api/templates/preview/route.ts)
 - [app/api/gitlab/projects/route.ts](file://app/api/gitlab/projects/route.ts)
 - [app/api/gitlab/validate-token/route.ts](file://app/api/gitlab/validate-token/route.ts)
 - [app/api/ai/polish/route.ts](file://app/api/ai/polish/route.ts)
+- [app/api/comments/route.ts](file://app/api/comments/route.ts)
+- [app/api/likes/route.ts](file://app/api/likes/route.ts)
+- [app/api/notifications/route.ts](file://app/api/notifications/route.ts)
+- [app/api/notifications/stream/route.ts](file://app/api/notifications/stream/route.ts)
 - [app/api/admin/users/route.ts](file://app/api/admin/users/route.ts)
 - [app/api/admin/team-reports/route.ts](file://app/api/admin/team-reports/route.ts)
 - [app/api/admin/team-reports/range/route.ts](file://app/api/admin/team-reports/range/route.ts)
@@ -652,15 +893,22 @@ PRISMA --> ROUTE_ADMIN_TEAM_STATS
 - [lib/gitlab.ts](file://lib/gitlab.ts)
 - [lib/report.ts](file://lib/report.ts)
 - [lib/stats.ts](file://lib/stats.ts)
+- [lib/notify.ts](file://lib/notify.ts)
+- [lib/redis.ts](file://lib/redis.ts)
 - [app/api/me/route.ts](file://app/api/me/route.ts)
 - [app/api/reports/route.ts](file://app/api/reports/route.ts)
 - [app/api/reports/generate/route.ts](file://app/api/reports/generate/route.ts)
+- [app/api/reports/export/route.ts](file://app/api/reports/export/route.ts)
 - [app/api/stats/commits/route.ts](file://app/api/stats/commits/route.ts)
 - [app/api/templates/route.ts](file://app/api/templates/route.ts)
 - [app/api/templates/preview/route.ts](file://app/api/templates/preview/route.ts)
 - [app/api/gitlab/projects/route.ts](file://app/api/gitlab/projects/route.ts)
 - [app/api/gitlab/validate-token/route.ts](file://app/api/gitlab/validate-token/route.ts)
 - [app/api/ai/polish/route.ts](file://app/api/ai/polish/route.ts)
+- [app/api/comments/route.ts](file://app/api/comments/route.ts)
+- [app/api/likes/route.ts](file://app/api/likes/route.ts)
+- [app/api/notifications/route.ts](file://app/api/notifications/route.ts)
+- [app/api/notifications/stream/route.ts](file://app/api/notifications/stream/route.ts)
 - [app/api/admin/users/route.ts](file://app/api/admin/users/route.ts)
 - [app/api/admin/team-reports/route.ts](file://app/api/admin/team-reports/route.ts)
 - [app/api/admin/team-reports/range/route.ts](file://app/api/admin/team-reports/range/route.ts)
@@ -673,10 +921,16 @@ PRISMA --> ROUTE_ADMIN_TEAM_STATS
   - Report generation performs concurrent project commit fetching; ensure GitLab API quotas are considered.
   - Statistics endpoint processes projects concurrently with graceful error handling for individual project failures.
   - Team statistics endpoint processes all users concurrently with individual user failures skipped silently.
+  - Social interaction endpoints use efficient database queries with proper indexing on reportId and userId.
 - Caching:
   - Project cache is refreshed during token validation; consider adding CDN or server-side caching for repeated reads.
   - Template preview responses are computed per request; consider caching compiled templates per user/template if needed.
   - Team statistics are computed on-demand; consider implementing caching for frequently accessed date ranges.
+  - Notification streaming maintains persistent Redis subscriptions; ensure proper cleanup on client disconnect.
+- Real-time notifications:
+  - Redis pub/sub provides efficient real-time delivery with minimal latency.
+  - SSE stream supports up to 30 notifications per request with automatic heartbeat maintenance.
+  - Notification count is calculated on-demand to ensure accuracy.
 - Rendering:
   - Template compilation occurs per request; consider caching compiled templates per user/template if needed.
   - Team reports range endpoint limits maximum 92-day range to prevent excessive data processing.
@@ -686,13 +940,20 @@ PRISMA --> ROUTE_ADMIN_TEAM_STATS
   - 401 Unauthorized: No active session; ensure NextAuth cookies are present.
   - 403 Forbidden: Admin-required endpoint accessed by non-admin user.
   - 403 Forbidden: Non-admin trying to access another user's statistics via userId parameter.
+  - 403 Forbidden: Attempting to access comments/likes without proper authorization.
 - Validation errors:
   - 400 Bad Request: Malformed date, invalid date range, or exceeded maximum range (92 days).
   - Date format validation: YYYY-MM-DD format required for startDate and endDate parameters.
   - Range validation: startDate must be before or equal to endDate.
+  - Missing required parameters: reportId required for comments/likes endpoints.
+  - Content validation: Comments must be 1-2000 characters, reports must be valid.
 - GitLab integration:
   - 404 Not Found: Project not found under current user.
   - 502 Bad Gateway: Upstream GitLab or LLM service failure; check baseUrl/token/environment variables.
+- Social interaction issues:
+  - 404 Not Found: Report or comment not found when accessing social features.
+  - Notification streaming: 401 Unauthorized if no active session when connecting to SSE stream.
+  - Redis connectivity: Ensure REDIS_URL environment variable is properly configured.
 - Internal errors:
   - 500 Internal Server Error: Unexpected server-side exceptions; check logs.
 - Statistics endpoint:
@@ -713,9 +974,13 @@ PRISMA --> ROUTE_ADMIN_TEAM_STATS
 - [app/api/gitlab/validate-token/route.ts](file://app/api/gitlab/validate-token/route.ts)
 - [app/api/ai/polish/route.ts](file://app/api/ai/polish/route.ts)
 - [app/api/stats/commits/route.ts](file://app/api/stats/commits/route.ts)
+- [app/api/comments/route.ts](file://app/api/comments/route.ts)
+- [app/api/likes/route.ts](file://app/api/likes/route.ts)
+- [app/api/notifications/route.ts](file://app/api/notifications/route.ts)
+- [app/api/notifications/stream/route.ts](file://app/api/notifications/stream/route.ts)
 
 ## Conclusion
-The Pingyun Report API provides a comprehensive set of endpoints for user self-service, admin oversight, GitLab integration, statistics dashboard, template management, and AI-assisted report polishing. Authentication is handled centrally via NextAuth.js with JWT sessions, and strict validation ensures robust request handling. The addition of team statistics endpoints, admin override functionality, and enhanced error handling significantly improves the platform's administrative capabilities and user experience. For production deployments, consider adding rate limiting, monitoring, and secure transport.
+The Pingyun Report API provides a comprehensive set of endpoints for user self-service, admin oversight, GitLab integration, statistics dashboard, social interaction features, template management, and AI-assisted report polishing. Authentication is handled centrally via NextAuth.js with JWT sessions, and strict validation ensures robust request handling. The addition of social interaction endpoints (comments, likes, notifications) significantly enhances user engagement and community features. The real-time notification system using Redis pub/sub and Server-Sent Events provides instant feedback for user interactions. For production deployments, consider adding rate limiting, monitoring, and secure transport.
 
 ## Appendices
 
@@ -724,6 +989,7 @@ The Pingyun Report API provides a comprehensive set of endpoints for user self-s
 - Authorization roles: MEMBER and ADMIN; admin endpoints guarded by requireAdmin.
 - Session enforcement: requireUser/requireAdmin wrappers and middleware protect routes.
 - Admin override: Admins can access other users' statistics via userId parameter in stats/commits endpoint.
+- Social interaction access control: Report owners and admins have elevated permissions for comments and likes.
 
 **Section sources**
 - [lib/auth.ts](file://lib/auth.ts)
@@ -737,6 +1003,17 @@ Representative request/response shapes and validation rules:
   - GET /api/reports: query params date (YYYY-MM-DD) or month (YYYY-MM-DD); returns reports[] or report.
   - POST /api/reports: body { date, content, templateId?, rawCommits? }; returns report.
   - DELETE /api/reports: query param date (YYYY-MM-DD); returns { ok: true }.
+  - GET /api/reports/export: query param date, format; returns binary content.
+
+- Social Interaction
+  - GET /api/comments: query param reportId; returns { comments: Comment[] }.
+  - POST /api/comments: body { reportId, content }; returns { comment: Comment }.
+  - DELETE /api/comments: query param id; returns { ok: true }.
+  - GET /api/likes: query param reportId; returns { count, liked }.
+  - POST /api/likes: body { reportId }; returns { count, liked }.
+  - GET /api/notifications: returns { notifications, unreadCount }.
+  - PATCH /api/notifications: body { ids[] } or { all: true }; returns { ok: true }.
+  - GET /api/notifications/stream: SSE stream with JSON payloads.
 
 - Statistics
   - GET /api/stats/commits: query params startDate (YYYY-MM-DD), endDate (YYYY-MM-DD), userId (optional); returns { total, breakdown, byProject }.
@@ -770,6 +1047,11 @@ Representative request/response shapes and validation rules:
 **Section sources**
 - [app/api/reports/route.ts](file://app/api/reports/route.ts)
 - [app/api/reports/generate/route.ts](file://app/api/reports/generate/route.ts)
+- [app/api/reports/export/route.ts](file://app/api/reports/export/route.ts)
+- [app/api/comments/route.ts](file://app/api/comments/route.ts)
+- [app/api/likes/route.ts](file://app/api/likes/route.ts)
+- [app/api/notifications/route.ts](file://app/api/notifications/route.ts)
+- [app/api/notifications/stream/route.ts](file://app/api/notifications/stream/route.ts)
 - [app/api/stats/commits/route.ts](file://app/api/stats/commits/route.ts)
 - [app/api/admin/stats/team/route.ts](file://app/api/admin/stats/team/route.ts)
 - [app/api/templates/route.ts](file://app/api/templates/route.ts)
@@ -785,28 +1067,49 @@ Representative request/response shapes and validation rules:
 - No explicit API versioning header or URL segment is used in the current implementation.
 - Backward compatibility is not enforced; breaking changes may occur without notice.
 
-### Team Statistics Features
-- Team reports range: Calendar-style submission heatmap showing daily report submissions across team members.
-- Team statistics aggregation: Comprehensive commit analytics across all team members with type breakdown and member ranking.
-- Admin override: Administrators can query any team member's statistics via userId parameter.
-- Graceful error handling: Individual user/project failures don't prevent overall statistics generation.
-- Performance optimization: Maximum 92-day range limit prevents excessive data processing.
+### Social Interaction Features
+- Comments system: Full CRUD operations with access control, notification integration, and author verification.
+- Likes system: Toggle functionality with real-time notifications and user-specific status tracking.
+- Notifications: Complete notification lifecycle with read/unread tracking, bulk operations, and real-time streaming.
+- Access control: Strict permissions ensuring report owners and admins have appropriate privileges.
+- Real-time delivery: Redis pub/sub integration with Server-Sent Events for instant notification updates.
+- Data integrity: Proper foreign key constraints and cascading deletes for related entities.
 
 **Section sources**
-- [app/api/admin/team-reports/range/route.ts](file://app/api/admin/team-reports/range/route.ts)
-- [app/api/admin/stats/team/route.ts](file://app/api/admin/stats/team/route.ts)
-- [app/api/stats/commits/route.ts](file://app/api/stats/commits/route.ts)
-- [components/team/overview-tab.tsx](file://components/team/overview-tab.tsx)
-- [components/team/member-stats-tab.tsx](file://components/team/member-stats-tab.tsx)
+- [app/api/comments/route.ts](file://app/api/comments/route.ts)
+- [app/api/likes/route.ts](file://app/api/likes/route.ts)
+- [app/api/notifications/route.ts](file://app/api/notifications/route.ts)
+- [app/api/notifications/stream/route.ts](file://app/api/notifications/stream/route.ts)
+- [lib/notify.ts](file://lib/notify.ts)
+- [lib/redis.ts](file://lib/redis.ts)
+- [prisma/schema.prisma](file://prisma/schema.prisma)
 
 ### Enhanced Error Handling
 - Centralized error handling via withErrors wrapper converts thrown errors to standardized JSON responses.
 - Validation errors return 400 with descriptive error messages.
 - Authentication errors return 401 or 403 with standardized error fields.
 - Graceful degradation: Individual project/user failures don't prevent overall endpoint completion.
+- Social interaction endpoints implement comprehensive access control with proper error responses.
 
 **Section sources**
 - [lib/session.ts](file://lib/session.ts)
 - [app/api/admin/team-reports/range/route.ts](file://app/api/admin/team-reports/range/route.ts)
 - [app/api/admin/stats/team/route.ts](file://app/api/admin/stats/team/route.ts)
 - [app/api/stats/commits/route.ts](file://app/api/stats/commits/route.ts)
+- [app/api/comments/route.ts](file://app/api/comments/route.ts)
+- [app/api/likes/route.ts](file://app/api/likes/route.ts)
+- [app/api/notifications/route.ts](file://app/api/notifications/route.ts)
+- [app/api/notifications/stream/route.ts](file://app/api/notifications/stream/route.ts)
+
+### Real-Time Notification Architecture
+- Redis pub/sub integration: Efficient publish-subscribe pattern for instant notification delivery.
+- Server-Sent Events (SSE): Persistent connections for real-time updates without polling overhead.
+- Channel isolation: User-specific channels prevent cross-user notification leakage.
+- Connection management: Proper cleanup on client disconnect with Redis subscription unsubscribe.
+- Heartbeat mechanism: Initial heartbeat message establishes and maintains SSE connections.
+- Scalability: Each SSE connection maintains its own Redis subscriber instance for thread safety.
+
+**Section sources**
+- [lib/notify.ts](file://lib/notify.ts)
+- [lib/redis.ts](file://lib/redis.ts)
+- [app/api/notifications/stream/route.ts](file://app/api/notifications/stream/route.ts)

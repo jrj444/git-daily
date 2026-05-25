@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { withErrors, requireUser } from "@/lib/session";
+import { createNotification } from "@/lib/notify";
 
 export const GET = withErrors(async (req: Request) => {
   const user = await requireUser();
@@ -55,13 +56,11 @@ export const POST = withErrors(async (req: Request) => {
     // Notify report owner on like (not on unlike, not self)
     if (report.userId !== user.id) {
       const dateStr = new Date(report.date).toISOString().slice(0, 10);
-      await prisma.notification.create({
-        data: {
-          userId: report.userId,
-          type: "like",
-          title: `${user.username} 点赞了你 ${dateStr} 的日报`,
-          relatedId: body.reportId,
-        },
+      await createNotification({
+        userId: report.userId,
+        type: "like",
+        title: `${user.username} 点赞了你 ${dateStr} 的日报`,
+        relatedId: body.reportId,
       });
     }
   }

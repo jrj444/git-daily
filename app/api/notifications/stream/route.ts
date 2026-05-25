@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { createSubscriber } from "@/lib/redis";
 import { getSessionUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -9,39 +10,41 @@ export async function GET(req: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  let lastCheck = new Date();
+  const channel = `notifications:${user.id}`;
+  const sub = createSubscriber();
   const encoder = new TextEncoder();
   let closed = false;
 
   const stream = new ReadableStream({
     start(controller) {
-      // Send initial heartbeat
+      // Send initial heartbeat so the connection is established
       controller.enqueue(encoder.encode(": heartbeat\n\n"));
 
-      const interval = setInterval(async () => {
+      // Subscribe to the user's notification channel
+      sub.subscribe(channel).catch(() => {});
+
+      sub.on("message", async (_ch: string, message: string) => {
         if (closed) return;
         try {
-          const newNotifs = await prisma.notification.findMany({
-            where: { userId: user.id, createdAt: { gt: lastCheck } },
-            orderBy: { createdAt: "desc" },
-            take: 10,
+          const notification = JSON.parse(message);
+          const unreadCount = await prisma.notification.count({
+            where: { userId: user.id, read: false },
           });
-          if (newNotifs.length > 0) {
-            lastCheck = new Date();
-            const unreadCount = await prisma.notification.count({
-              where: { userId: user.id, read: false },
-            });
-            const payload = JSON.stringify({ unreadCount, latest: newNotifs });
-            controller.enqueue(encoder.encode(`data: ${payload}\n\n`));
-          }
+          const payload = JSON.stringify({
+            unreadCount,
+            latest: [notification],
+          });
+          controller.enqueue(encoder.encode(`data: ${payload}\n\n`));
         } catch {
-          // Connection may have closed
+          // ignore errors on closed connections
         }
-      }, 3000);
+      });
 
+      // Cleanup when client disconnects
       req.signal.addEventListener("abort", () => {
         closed = true;
-        clearInterval(interval);
+        sub.unsubscribe(channel).catch(() => {});
+        sub.quit().catch(() => {});
         try {
           controller.close();
         } catch {

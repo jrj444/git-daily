@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { withErrors, requireUser } from "@/lib/session";
+import { createNotification } from "@/lib/notify";
 
 export const GET = withErrors(async (req: Request) => {
   const user = await requireUser();
@@ -76,14 +77,12 @@ export const POST = withErrors(async (req: Request) => {
   // Create notification for the report owner (skip if self-comment)
   if (report.userId !== user.id) {
     const dateStr = new Date(report.date).toISOString().slice(0, 10);
-    await prisma.notification.create({
-      data: {
-        userId: report.userId,
-        type: "comment",
-        title: `${user.username} 评论了你 ${dateStr} 的日报`,
-        body: body.content.slice(0, 100),
-        relatedId: body.reportId,
-      },
+    await createNotification({
+      userId: report.userId,
+      type: "comment",
+      title: `${user.username} 评论了你 ${dateStr} 的日报`,
+      body: body.content.slice(0, 100),
+      relatedId: body.reportId,
     });
   }
 

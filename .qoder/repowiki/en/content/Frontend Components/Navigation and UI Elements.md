@@ -3,6 +3,7 @@
 <cite>
 **Referenced Files in This Document**
 - [nav.tsx](file://components/nav.tsx)
+- [notification-bell.tsx](file://components/notification-bell.tsx)
 - [theme-toggle.tsx](file://components/theme-toggle.tsx)
 - [layout.tsx](file://app/layout.tsx)
 - [providers.tsx](file://app/providers.tsx)
@@ -16,17 +17,20 @@
 - [report-editor.tsx](file://components/report-editor.tsx)
 - [settings-form.tsx](file://components/settings-form.tsx)
 - [history-view.tsx](file://components/history-view.tsx)
+- [use-notifications.ts](file://lib/hooks/use-notifications.ts)
+- [notify.ts](file://lib/notify.ts)
 - [globals.css](file://app/globals.css)
 - [tailwind.config.ts](file://tailwind.config.ts)
 </cite>
 
 ## Update Summary
 **Changes Made**
-- Added comprehensive documentation for the new ThemeToggle component and its integration
-- Updated navigation component documentation to reflect the three-state theme toggle (light/dark/system)
-- Enhanced dark mode implementation details with next-themes integration
-- Added ThemeToggle usage patterns in both desktop and mobile navigation layouts
-- Updated styling and theming section to cover the automated theme switching system
+- Added comprehensive documentation for the new NotificationBell component and its real-time notification system
+- Updated navigation component documentation to reflect the inclusion of the notification bell alongside theme toggle
+- Enhanced branding documentation to reflect the transition from '极报' to 'GitDaily' throughout the application
+- Added NotificationBell component implementation details with real-time SSE integration
+- Updated styling and theming section to cover the notification bell's visual design and interaction patterns
+- Added notification system architecture documentation including server-sent events and Redis pub/sub
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -43,17 +47,19 @@
 
 ## Introduction
 This document explains the navigation and UI element components of the application. It covers:
-- Navigation component structure with route-based active state management, authentication-aware visibility, and integrated theme switching
+- Navigation component structure with route-based active state management, authentication-aware visibility, integrated theme switching, and real-time notification bell
 - Layout component's role in page structure, header management, and responsive design patterns
+- NotificationBell component implementation with real-time server-sent events and Redis pub/sub integration
 - ThemeToggle component implementation with three-state theme cycling (light/dark/system)
 - UI element patterns including form controls, buttons, modals, and status indicators
 - Accessibility features, keyboard navigation support, and screen reader compatibility
 - Styling approaches using Tailwind CSS classes, responsive breakpoints, and dark mode considerations
 - Component reusability patterns, prop interfaces, and integration with the authentication system
 - Examples of UI customization and theming approaches
+- Comprehensive notification system architecture with real-time updates
 
 ## Project Structure
-The application follows a Next.js App Router structure with a shared layout and per-page routes. Navigation is centralized in a reusable component with integrated theme switching and injected into pages after authentication checks. UI elements are implemented as client components with consistent styling via Tailwind CSS and CSS variables.
+The application follows a Next.js App Router structure with a shared layout and per-page routes. Navigation is centralized in a reusable component with integrated theme switching, notification bell, and injected into pages after authentication checks. UI elements are implemented as client components with consistent styling via Tailwind CSS and CSS variables.
 
 ```mermaid
 graph TB
@@ -64,6 +70,11 @@ end
 subgraph "Theme System"
 TP["ThemeProvider<br/>next-themes"]
 TT["ThemeToggle<br/>components/theme-toggle.tsx"]
+end
+subgraph "Notification System"
+NB["NotificationBell<br/>components/notification-bell.tsx"]
+UN["useNotifications Hook<br/>lib/hooks/use-notifications.ts"]
+NP["Notification Publisher<br/>lib/notify.ts"]
 end
 subgraph "Pages"
 H["Home Page<br/>app/page.tsx"]
@@ -98,6 +109,7 @@ H --> RE
 HI --> HF
 S --> SF
 N --> TT
+N --> NB
 N --> SESS
 H --> SESS
 HI --> SESS
@@ -105,6 +117,8 @@ S --> SESS
 AU --> SESS
 AT --> SESS
 SESS --> AO
+NB --> UN
+UN --> NP
 ```
 
 **Diagram sources**
@@ -112,26 +126,37 @@ SESS --> AO
 - [providers.tsx:6-17](file://app/providers.tsx#L6-L17)
 - [theme-toggle.tsx:10-102](file://components/theme-toggle.tsx#L10-L102)
 - [nav.tsx:8-175](file://components/nav.tsx#L8-L175)
+- [notification-bell.tsx:18-132](file://components/notification-bell.tsx#L18-L132)
 - [report-editor.tsx:19-296](file://components/report-editor.tsx#L19-L296)
 - [history-view.tsx:18-221](file://components/history-view.tsx#L18-L221)
 - [settings-form.tsx:33-368](file://components/settings-form.tsx#L33-L368)
 - [auth.ts:30-77](file://lib/auth.ts#L30-L77)
 - [session.ts:12-37](file://lib/session.ts#L12-L37)
+- [use-notifications.ts:15-88](file://lib/hooks/use-notifications.ts#L15-L88)
+- [notify.ts:16-24](file://lib/notify.ts#L16-L24)
 
 **Section sources**
 - [layout.tsx:17-35](file://app/layout.tsx#L17-L35)
 - [providers.tsx:6-17](file://app/providers.tsx#L6-L17)
 - [theme-toggle.tsx:10-102](file://components/theme-toggle.tsx#L10-L102)
 - [nav.tsx:8-175](file://components/nav.tsx#L8-L175)
+- [notification-bell.tsx:18-132](file://components/notification-bell.tsx#L18-L132)
 
 ## Core Components
 - Navigation component
-  - Purpose: Renders top-level navigation links, admin-only sections for admins, user greeting, logout, and integrated theme switching.
+  - Purpose: Renders top-level navigation links, admin-only sections for admins, user greeting, logout, integrated theme switching, and real-time notification bell.
   - Active state: Uses the current pathname to highlight the active route or admin subsections.
   - Authentication-aware: Conditionally renders admin links based on user role.
   - Theme integration: Includes ThemeToggle component for three-state theme cycling (light/dark/system).
-  - Props: Accepts a user object with id, username, and role.
+  - Notification integration: Includes NotificationBell component for real-time notification display with unread count indicator.
+  - Props: Accepts a user object with username and role.
   - Styling: Uses Tailwind utilities for spacing, borders, colors, and responsive layout.
+- NotificationBell component
+  - Purpose: Provides real-time notification display with unread count indicator, dropdown menu for notification list, and navigation to related content.
+  - Real-time integration: Uses server-sent events (SSE) with Redis pub/sub for instant notification delivery.
+  - Interactive features: Click-to-read marking, mark-all-read functionality, and navigation to related report content.
+  - Visual design: Bell icon with red badge for unread count, dropdown with notification list and timestamps.
+  - Accessibility: Proper aria-labels and keyboard navigation support.
 - ThemeToggle component
   - Purpose: Provides three-state theme switching with automatic cycling between light, dark, and system preferences.
   - Implementation: Uses next-themes hook for theme state management and SSR-safe mounting detection.
@@ -147,6 +172,7 @@ SESS --> AO
 
 **Section sources**
 - [nav.tsx:8-175](file://components/nav.tsx#L8-L175)
+- [notification-bell.tsx:18-132](file://components/notification-bell.tsx#L18-L132)
 - [theme-toggle.tsx:10-102](file://components/theme-toggle.tsx#L10-L102)
 - [layout.tsx:17-35](file://app/layout.tsx#L17-L35)
 - [providers.tsx:6-17](file://app/providers.tsx#L6-L17)
@@ -155,11 +181,12 @@ SESS --> AO
 - [settings-form.tsx:33-368](file://components/settings-form.tsx#L33-L368)
 
 ## Architecture Overview
-The navigation and UI architecture integrates routing, authentication, theme management, and client-side interactivity:
+The navigation and UI architecture integrates routing, authentication, theme management, real-time notifications, and client-side interactivity:
 - Pages fetch the session user and enforce access control before rendering.
-- The Nav component receives the user and renders appropriate links with integrated theme switching.
+- The Nav component receives the user and renders appropriate links with integrated theme switching and notification bell.
+- NotificationBell component provides real-time notification display with server-sent events and Redis pub/sub integration.
 - ThemeToggle component provides three-state theme cycling with next-themes integration.
-- Client components manage local state, fetch data, and render UI patterns with theme-aware components.
+- Client components manage local state, fetch data, and render UI patterns with theme-aware and notification-aware components.
 - Tailwind CSS and CSS variables provide consistent styling and dark mode support.
 
 ```mermaid
@@ -171,6 +198,7 @@ participant ThemeProvider as "ThemeProvider"
 participant Page as "Page Component"
 participant Nav as "Nav"
 participant ThemeToggle as "ThemeToggle"
+participant NotificationBell as "NotificationBell"
 participant Session as "getSessionUser"
 participant Auth as "NextAuth"
 Browser->>Layout : Request HTML
@@ -180,11 +208,13 @@ ThemeProvider->>Page : Render page with theme context
 Page->>Session : getSessionUser()
 Session->>Auth : getServerSession()
 Auth-->>Session : Session with user
-Session-->>Page : {id, username, role}
+Session-->>Page : {username, role}
 Page->>Nav : Pass user props
 Nav->>ThemeToggle : Render with theme context
+Nav->>NotificationBell : Render with notification context
 ThemeToggle-->>Nav : Three-state toggle UI
-Nav-->>Browser : Render header with active links, user menu, and theme toggle
+NotificationBell-->>Nav : Real-time notifications + unread count
+Nav-->>Browser : Render header with active links, user menu, theme toggle, and notification bell
 ```
 
 **Diagram sources**
@@ -192,6 +222,7 @@ Nav-->>Browser : Render header with active links, user menu, and theme toggle
 - [providers.tsx:6-17](file://app/providers.tsx#L6-L17)
 - [theme-toggle.tsx:10-102](file://components/theme-toggle.tsx#L10-L102)
 - [nav.tsx:8-175](file://components/nav.tsx#L8-L175)
+- [notification-bell.tsx:18-132](file://components/notification-bell.tsx#L18-L132)
 - [session.ts:12-20](file://lib/session.ts#L12-L20)
 - [auth.ts:30-77](file://lib/auth.ts#L30-L77)
 
@@ -208,10 +239,14 @@ Nav-->>Browser : Render header with active links, user menu, and theme toggle
   - Integrated ThemeToggle component for three-state theme switching (light/dark/system).
   - Desktop layout includes theme toggle in the user menu area.
   - Mobile layout includes theme toggle in the user menu section of the dropdown.
+- Notification integration
+  - Integrated NotificationBell component for real-time notification display with unread count indicator.
+  - Desktop layout includes notification bell in the user menu area alongside theme toggle.
+  - Mobile layout includes notification bell in the user menu section of the dropdown.
 - Styling and responsiveness
   - Uses container utilities for max width and horizontal padding.
   - Responsive flex layout with gap-based spacing and text sizing.
-  - Mobile hamburger menu with dropdown containing theme toggle and user controls.
+  - Mobile hamburger menu with dropdown containing theme toggle, notification bell, and user controls.
 - Reusability
   - Stateless functional component receiving user via props.
   - Can be composed with any page that provides a user object.
@@ -223,11 +258,11 @@ GetPath --> BuildItems["Build top-level items"]
 BuildItems --> CheckAdmin{"user.role === ADMIN?"}
 CheckAdmin --> |Yes| AddAdmin["Add admin items with startsWith check"]
 CheckAdmin --> |No| SkipAdmin["Skip admin items"]
-AddAdmin --> RenderDesktop["Render desktop nav with ThemeToggle"]
+AddAdmin --> RenderDesktop["Render desktop nav with ThemeToggle + NotificationBell"]
 SkipAdmin --> RenderDesktop
-RenderDesktop --> UserMenu["Render username + logout button + ThemeToggle"]
+RenderDesktop --> UserMenu["Render username + logout button + ThemeToggle + NotificationBell"]
 UserMenu --> CheckMobile{"Mobile view?"}
-CheckMobile --> |Yes| RenderMobile["Render mobile dropdown with ThemeToggle"]
+CheckMobile --> |Yes| RenderMobile["Render mobile dropdown with ThemeToggle + NotificationBell"]
 CheckMobile --> |No| End(["Done"])
 RenderMobile --> End
 ```
@@ -237,6 +272,33 @@ RenderMobile --> End
 
 **Section sources**
 - [nav.tsx:14-175](file://components/nav.tsx#L14-L175)
+
+### NotificationBell Component
+- Real-time notification system
+  - Uses server-sent events (SSE) with EventSource API for instant notification delivery.
+  - Integrates with Redis pub/sub for scalable real-time communication.
+  - Maintains local state with notifications array and unread count.
+- Interactive features
+  - Dropdown menu displays notification list with timestamps and read/unread status.
+  - Click-to-read marking automatically updates notification state and unread count.
+  - Mark-all-read functionality clears all unread notifications.
+  - Navigation to related report content when notifications have relatedId.
+- Visual design and UX
+  - Bell icon with red badge indicator for unread count (caps at 99+).
+  - Dropdown positioned absolutely with shadow and scrollable content area.
+  - Different styling for read vs unread notifications with subtle background highlighting.
+  - Empty state with friendly "暂无通知" (No notifications) message.
+- Accessibility features
+  - Proper aria-label "通知" (Notifications) for screen reader compatibility.
+  - Keyboard navigation support within dropdown menu.
+  - Clear visual indicators for unread notifications with small red dot.
+- Integration points
+  - Used in both desktop and mobile navigation layouts.
+  - Accessible via keyboard navigation and screen readers.
+  - Seamlessly integrates with existing theme system.
+
+**Section sources**
+- [notification-bell.tsx:18-132](file://components/notification-bell.tsx#L18-L132)
 
 ### ThemeToggle Component
 - Three-state theme cycling
@@ -271,6 +333,7 @@ RenderMobile --> End
 - Header management
   - Pages render Nav immediately under the layout, ensuring consistent header across routes.
   - Main content area uses flexbox to fill remaining viewport height and center content.
+  - NotificationBell integrates seamlessly with existing header layout structure.
 
 ```mermaid
 graph TB
@@ -287,6 +350,7 @@ PSP --> NAV
 AUP --> NAV
 ATP --> NAV
 NAV --> TT["ThemeToggle<br/>components/theme-toggle.tsx"]
+NAV --> NB["NotificationBell<br/>components/notification-bell.tsx"]
 ```
 
 **Diagram sources**
@@ -294,6 +358,7 @@ NAV --> TT["ThemeToggle<br/>components/theme-toggle.tsx"]
 - [providers.tsx:6-17](file://app/providers.tsx#L6-L17)
 - [nav.tsx:8-175](file://components/nav.tsx#L8-L175)
 - [theme-toggle.tsx:10-102](file://components/theme-toggle.tsx#L10-L102)
+- [notification-bell.tsx:18-132](file://components/notification-bell.tsx#L18-L132)
 
 **Section sources**
 - [layout.tsx:17-35](file://app/layout.tsx#L17-L35)
@@ -326,6 +391,7 @@ NAV --> TT["ThemeToggle<br/>components/theme-toggle.tsx"]
 #### Status Indicators
 - Toast notifications via react-hot-toast for user feedback on save, copy, AI polish, and error scenarios.
 - Inline status messages for calendar entries and empty states.
+- Notification bell with unread count indicator for real-time notification display.
 
 **Section sources**
 - [report-editor.tsx:19-296](file://components/report-editor.tsx#L19-L296)
@@ -441,6 +507,53 @@ SF-->>Page : Render updated state
 **Section sources**
 - [settings-form.tsx:33-368](file://components/settings-form.tsx#L33-L368)
 
+### Notification System Architecture
+- Real-time communication
+  - Server-sent events (SSE) using EventSource API for bidirectional real-time updates.
+  - Redis pub/sub for scalable message distribution across multiple instances.
+  - Automatic reconnection on connection failures.
+- Data flow
+  - Notifications created via createNotification function with database persistence.
+  - Redis publisher broadcasts notifications to subscribed clients.
+  - useNotifications hook manages local state and SSE connection lifecycle.
+- User experience
+  - Unread count badge on notification bell icon.
+  - Latest notifications appear at the top of the dropdown list.
+  - Automatic pagination to limit displayed notifications to 30 latest items.
+  - Timestamps formatted in human-readable Chinese ("刚刚", "分钟前", "小时前", "天前").
+
+```mermaid
+sequenceDiagram
+participant User as "User"
+participant NotificationBell as "NotificationBell"
+participant useNotifications as "useNotifications Hook"
+participant SSE as "Server-Sent Events"
+participant Redis as "Redis Pub/Sub"
+participant Database as "Prisma DB"
+User->>NotificationBell : Click bell icon
+NotificationBell->>useNotifications : Fetch initial notifications
+useNotifications->>SSE : Connect to /api/notifications/stream
+SSE->>useNotifications : Receive real-time updates
+useNotifications->>NotificationBell : Update notifications state
+NotificationBell->>User : Display dropdown with notifications
+User->>NotificationBell : Click notification
+NotificationBell->>useNotifications : Mark as read
+useNotifications->>Database : PATCH /api/notifications
+useNotifications->>SSE : Broadcast read status
+SSE->>useNotifications : Update unread count
+useNotifications->>NotificationBell : Update UI state
+```
+
+**Diagram sources**
+- [notification-bell.tsx:18-132](file://components/notification-bell.tsx#L18-L132)
+- [use-notifications.ts:15-88](file://lib/hooks/use-notifications.ts#L15-L88)
+- [notify.ts:16-24](file://lib/notify.ts#L16-L24)
+
+**Section sources**
+- [notification-bell.tsx:18-132](file://components/notification-bell.tsx#L18-L132)
+- [use-notifications.ts:15-88](file://lib/hooks/use-notifications.ts#L15-L88)
+- [notify.ts:16-24](file://lib/notify.ts#L16-L24)
+
 ### Conceptual Overview
 - Authentication-aware navigation
   - Pages enforce session presence and role checks; Nav reflects user role to show admin sections.
@@ -449,14 +562,20 @@ SF-->>Page : Render updated state
 - Theme-aware UI patterns
   - Consistent form controls, button variants, and toast-based feedback across components.
   - ThemeToggle provides seamless theme switching experience.
+- Notification-aware UI patterns
+  - NotificationBell integrates real-time updates with existing navigation patterns.
+  - Unread count badges provide immediate visual feedback for new notifications.
+  - Dropdown interface maintains consistency with existing mobile/desktop layouts.
 - UI patterns
   - Consistent form controls, button variants, and toast-based feedback across components.
 
 ```mermaid
 graph TB
-AUTH["Auth Checks<br/>getSessionUser + requireUser/requireAdmin"] --> NAV["Nav<br/>Active state + Admin visibility + ThemeToggle"]
+AUTH["Auth Checks<br/>getSessionUser + requireUser/requireAdmin"] --> NAV["Nav<br/>Active state + Admin visibility + ThemeToggle + NotificationBell"]
 NAV --> THEME["ThemeToggle<br/>Three-state theme cycling"]
+NAV --> NOTIF["NotificationBell<br/>Real-time notifications + unread count"]
 THEME --> UI["UI Components<br/>ReportEditor / HistoryView / SettingsForm"]
+NOTIF --> UI
 UI --> FEEDBACK["Toast Feedback<br/>react-hot-toast"]
 ```
 
@@ -471,14 +590,20 @@ UI --> FEEDBACK["Toast Feedback<br/>react-hot-toast"]
 - Navigation and pages
   - Pages depend on session utilities to enforce access control and pass user to Nav.
   - Nav depends on NextAuth client hooks for sign-out and pathname for active state.
-  - Nav integrates ThemeToggle for theme management.
+  - Nav integrates ThemeToggle for theme management and NotificationBell for real-time notifications.
 - Theme system
   - ThemeProvider from next-themes manages theme state and persistence.
   - ThemeToggle component provides three-state theme cycling with SSR safety.
   - CSS variables in globals.css define theme-specific color values.
+- Notification system
+  - NotificationBell component depends on useNotifications hook for state management.
+  - useNotifications hook uses EventSource for SSE connections and Redis for pub/sub.
+  - Redis publisher and subscriber handle real-time communication between instances.
+  - Prisma ORM manages notification persistence in the database.
 - UI components
   - Client components depend on APIs for data and state; they render UI patterns consistently.
   - Components like ReportEditor and HistoryView integrate theme awareness for editor appearance.
+  - NotificationBell integrates with existing UI patterns for consistent user experience.
 
 ```mermaid
 graph LR
@@ -488,10 +613,16 @@ PAGE --> NAV["components/nav.tsx"]
 PAGE --> UI["components/*.tsx"]
 NAV --> NEXTAUTH["next-auth/react"]
 NAV --> THEMECOMP["components/theme-toggle.tsx"]
+NAV --> NOTIFCOMP["components/notification-bell.tsx"]
 THEMECOMP --> THEMEHOOK["next-themes"]
+NOTIFCOMP --> NOTIFHOOK["lib/hooks/use-notifications.ts"]
+NOTIFHOOK --> SSE["EventSource API"]
+NOTIFHOOK --> REDIS["Redis Pub/Sub"]
+NOTIFHOOK --> PRISMA["Prisma ORM"]
 UI --> TOAST["react-hot-toast"]
 UI --> MD["@uiw/react-md-editor"]
 THEMECOMP --> CSSVARS["app/globals.css"]
+NOTIFCOMP --> CSSVARS
 ```
 
 **Diagram sources**
@@ -500,34 +631,47 @@ THEMECOMP --> CSSVARS["app/globals.css"]
 - [page.tsx:8-19](file://app/page.tsx#L8-L19)
 - [nav.tsx:8-175](file://components/nav.tsx#L8-L175)
 - [theme-toggle.tsx:10-102](file://components/theme-toggle.tsx#L10-L102)
+- [notification-bell.tsx:18-132](file://components/notification-bell.tsx#L18-L132)
 - [report-editor.tsx:19-296](file://components/report-editor.tsx#L19-L296)
 - [history-view.tsx:18-221](file://components/history-view.tsx#L18-L221)
 - [settings-form.tsx:33-368](file://components/settings-form.tsx#L33-L368)
 - [globals.css:5-45](file://app/globals.css#L5-L45)
+- [use-notifications.ts:15-88](file://lib/hooks/use-notifications.ts#L15-L88)
+- [notify.ts:16-24](file://lib/notify.ts#L16-L24)
 
 **Section sources**
 - [auth.ts:30-77](file://lib/auth.ts#L30-L77)
 - [session.ts:12-37](file://lib/session.ts#L12-L37)
 - [nav.tsx:8-175](file://components/nav.tsx#L8-L175)
 - [theme-toggle.tsx:10-102](file://components/theme-toggle.tsx#L10-L102)
+- [notification-bell.tsx:18-132](file://components/notification-bell.tsx#L18-L132)
 - [report-editor.tsx:19-296](file://components/report-editor.tsx#L19-L296)
 - [history-view.tsx:18-221](file://components/history-view.tsx#L18-L221)
 - [settings-form.tsx:33-368](file://components/settings-form.tsx#L33-L368)
 - [globals.css:5-45](file://app/globals.css#L5-L45)
+- [use-notifications.ts:15-88](file://lib/hooks/use-notifications.ts#L15-L88)
+- [notify.ts:16-24](file://lib/notify.ts#L16-L24)
 
 ## Performance Considerations
 - Client component hydration
   - Nav and UI components are client-rendered; keep payload minimal and avoid unnecessary re-renders by using memoization and controlled state.
   - ThemeToggle uses mounted state to prevent hydration issues and optimize SSR performance.
+  - NotificationBell uses efficient state management with local caching and SSE for optimal real-time updates.
 - API calls
   - Batch concurrent requests where possible (e.g., templates, projects, and user data).
+  - Notification system limits displayed notifications to 30 latest items to prevent memory issues.
 - Rendering
   - Large lists (projects, templates) are paginated implicitly by filtering and scrolling; consider virtualization for very large datasets.
+  - Notification dropdown uses virtualized scrolling for performance with large notification lists.
 - Toast usage
   - Keep toast queue manageable; avoid excessive notifications during batch operations.
 - Theme switching
   - ThemeToggle uses next-themes with disableTransitionOnChange to prevent visual flicker during theme changes.
   - CSS variables provide efficient theme switching without expensive DOM reflows.
+- Real-time notifications
+  - SSE connections are automatically managed with reconnection logic.
+  - Redis pub/sub provides scalable real-time communication across multiple instances.
+  - Notification system implements rate limiting and pagination to prevent resource exhaustion.
 
 [No sources needed since this section provides general guidance]
 
@@ -535,15 +679,19 @@ THEMECOMP --> CSSVARS["app/globals.css"]
 - Focus management
   - Buttons and inputs receive default focus styles; ensure interactive elements are reachable via Tab order.
   - ThemeToggle includes proper aria-labels and title attributes for screen reader compatibility.
+  - NotificationBell dropdown supports keyboard navigation with arrow keys and Enter/Space activation.
 - Labels and semantics
   - Use labels for inputs and clear button text; avoid relying solely on icons.
   - ThemeToggle provides clear labels indicating current theme state and action.
+  - NotificationBell includes proper aria-label "通知" (Notifications) for screen reader announcements.
 - Screen reader compatibility
   - ThemeToggle includes aria-label and title attributes for screen reader announcements.
+  - NotificationBell dropdown announces notification count and provides clear navigation cues.
   - Markdown editors render accessible previews; ensure error messages and status updates are announced.
 - Color contrast
   - Primary and muted colors are used for emphasis; verify sufficient contrast in both light and dark modes.
   - CSS variables ensure consistent color contrast across theme changes.
+  - Notification unread indicators use high-contrast red color for accessibility.
 
 [No sources needed since this section provides general guidance]
 
@@ -556,12 +704,19 @@ THEMECOMP --> CSSVARS["app/globals.css"]
   - CSS variables define light and dark palettes with RGB values for consistent theming.
   - Tailwind utilities consume CSS variables for responsive color application.
   - Markdown editor background aligns with theme variables for consistent appearance.
+  - Notification bell styling adapts to current theme with consistent color schemes.
 - ThemeToggle implementation
   - Three-state theme cycling with automatic state management via next-themes.
   - SSR-safe implementation prevents hydration mismatches during server-side rendering.
   - Visual feedback with different icons for each theme state (sun/moon/laptop).
+- NotificationBell styling
+  - Bell icon with absolute positioning for unread count badge.
+  - Dropdown menu uses shadow-lg and rounded-lg for modern appearance.
+  - Unread notifications highlighted with subtle primary/5 background.
+  - Responsive design adapts dropdown width and scroll behavior for different screen sizes.
 - Responsive design
   - Flex and grid utilities provide responsive layouts; breakpoints adjust for single column on small screens and two-column layout on medium+.
+  - Notification dropdown adapts to mobile and desktop screen sizes.
 - Button and input styles
   - Consistent border, padding, and rounded corners; disabled states reduce opacity; primary variant uses contrasting foreground.
 
@@ -569,6 +724,7 @@ THEMECOMP --> CSSVARS["app/globals.css"]
 - [tailwind.config.ts:3-27](file://tailwind.config.ts#L3-L27)
 - [globals.css:5-45](file://app/globals.css#L5-L45)
 - [theme-toggle.tsx:10-102](file://components/theme-toggle.tsx#L10-L102)
+- [notification-bell.tsx:18-132](file://components/notification-bell.tsx#L18-L132)
 
 ## Troubleshooting Guide
 - Navigation active state not updating
@@ -588,15 +744,30 @@ THEMECOMP --> CSSVARS["app/globals.css"]
 - Hydration warnings with ThemeToggle
   - Confirm mounted state is used to prevent SSR mismatches.
   - Ensure ThemeToggle renders placeholder during SSR phase.
+- NotificationBell not displaying notifications
+  - Verify SSE connection is established and EventSource is supported by the browser.
+  - Check Redis pub/sub connectivity and ensure notification publisher is running.
+  - Confirm useNotifications hook is properly imported and initialized.
+- Real-time notifications not updating
+  - Verify server-sent events endpoint is accessible and returning JSON data.
+  - Check browser console for EventSource connection errors.
+  - Ensure notification creation API is functioning correctly.
+- Notification unread count not updating
+  - Verify markAsRead and markAllRead functions are properly implemented.
+  - Check SSE event handling for unread count updates.
+  - Confirm database updates are occurring for read status changes.
 
 **Section sources**
 - [nav.tsx:14-175](file://components/nav.tsx#L14-L175)
 - [theme-toggle.tsx:10-102](file://components/theme-toggle.tsx#L10-L102)
+- [notification-bell.tsx:18-132](file://components/notification-bell.tsx#L18-L132)
 - [auth.ts:58-76](file://lib/auth.ts#L58-L76)
 - [session.ts:12-20](file://lib/session.ts#L12-L20)
 - [layout.tsx:23](file://app/layout.tsx#L23)
 - [globals.css:14-27](file://app/globals.css#L14-L27)
 - [providers.tsx:8-16](file://app/providers.tsx#L8-L16)
+- [use-notifications.ts:15-88](file://lib/hooks/use-notifications.ts#L15-L88)
+- [notify.ts:16-24](file://lib/notify.ts#L16-L24)
 
 ## Conclusion
-The navigation and UI system is built around a reusable Nav component with integrated ThemeToggle, a consistent layout shell with theme provider, and client components that implement robust UI patterns. The three-state theme switching (light/dark/system) provides seamless user experience with automated theme management. Authentication-aware routing and active-state management are integrated cleanly with Tailwind CSS theming and responsive design. The approach emphasizes reusability, clear feedback, and maintainable styling through CSS variables and utility-first classes, with comprehensive accessibility support for all interactive elements.
+The navigation and UI system is built around a reusable Nav component with integrated ThemeToggle, NotificationBell, and a consistent layout shell with theme provider. The three-state theme switching (light/dark/system) provides seamless user experience with automated theme management. The new NotificationBell component enhances the application with real-time notification capabilities using server-sent events and Redis pub/sub integration. Authentication-aware routing and active-state management are integrated cleanly with Tailwind CSS theming and responsive design. The approach emphasizes reusability, clear feedback, and maintainable styling through CSS variables and utility-first classes, with comprehensive accessibility support for all interactive elements. The branding transition to 'GitDaily' is consistently reflected throughout the application, from navigation headers to login pages and footer branding.
