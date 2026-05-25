@@ -1,21 +1,21 @@
-# GitDaily（极报）— 团队日报管理系统
+# GitDaily（极报）— 每日提交统计
 
-基于 Next.js 的全栈日报管理工具，对接自建 GitLab 读取提交记录并自动生成日报。支持多用户、模板管理、提交统计分析、团队概览、AI 润色等功能。
+基于 Next.js 的全栈每日提交统计工具，对接自建 GitLab 读取提交记录并自动生成统计。支持多用户、模板管理、提交统计分析、团队概览、AI 润色等功能。
 
 ## 技术栈
 
-| 分类 | 技术 |
-|------|------|
-| 前端框架 | Next.js 14 App Router + TypeScript |
-| 样式 | Tailwind CSS + next-themes（深色模式） |
+| 分类          | 技术 |
+|-------------|------|
+| 前端框架        | Next.js 14 App Router + TypeScript |
+| 样式          | Tailwind CSS + next-themes（深色模式） |
 | Markdown 编辑 | @uiw/react-md-editor |
-| 数据库 | MySQL + Prisma ORM |
-| 认证 | NextAuth.js（Credentials Provider, JWT Session） |
-| GitLab 对接 | GitLab REST API v4（服务端代理） |
-| AI 润色 | OpenAI 兼容接口（可选） |
-| 模板引擎 | Handlebars |
-| 状态管理 | Zustand |
-| 部署 | Docker 多阶段构建 |
+| 数据库         | MySQL + Prisma ORM |
+| 权限认证        | NextAuth.js（Credentials Provider, JWT Session） |
+| GitLab 对接   | GitLab REST API v4（服务端代理） |
+| AI 润色       | OpenAI 兼容接口（可选） |
+| 模板引擎        | Handlebars |
+| 状态管理        | Zustand |
+| 部署          | Docker 多阶段构建 |
 
 ## 功能特性
 
@@ -51,7 +51,7 @@
 
 - Node.js >= 18
 - MySQL 5.7+ 或 8.x
-- pnpm（本项目使用 pnpm）
+- pnpm
 
 ### 安装步骤
 

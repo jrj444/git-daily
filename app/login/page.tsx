@@ -48,9 +48,9 @@ export default function LoginPage() {
         {/* Branding */}
         <div className="flex flex-col items-center mb-6">
           <img src="/images/logo.png" alt="极报" className="w-20 h-20 mb-3 rounded-xl shadow-lg shadow-primary/20" />
-          <h1 className="text-2xl font-semibold tracking-tight">极报</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">GitDaily</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            GitLab 日报生成助手
+            GitLab 日报生成 | 代码统计
           </p>
         </div>
 
@@ -155,7 +155,7 @@ export default function LoginPage() {
         </form>
 
         <p className="text-xs text-muted-foreground text-center mt-6">
-          © 2026 GitDaily
+          © 2026 ~ Present GitDaily
         </p>
       </div>
     </div>

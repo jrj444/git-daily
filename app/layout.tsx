@@ -4,7 +4,7 @@ import { Toaster } from "react-hot-toast";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  title: "极报 - GitDaily",
+  title: "GitDaily · 日报",
   description: "GitLab 日报生成工具",
 };
 

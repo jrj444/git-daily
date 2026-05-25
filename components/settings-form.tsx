@@ -120,8 +120,8 @@ export function SettingsForm() {
             />
           </div>
           <div>
-            <label className="block text-xs text-muted-foreground mb-1">
-              Personal Access Token（read_api / read_repository）
+            <label className="block text-xs text-muted-foreground mb-1 text-nowrap">
+              Personal Access Token (read_api / read_repository)
               {me?.hasToken && (
                 <span className="ml-2 text-muted-foreground/70">
                   当前：{me.tokenMask}
