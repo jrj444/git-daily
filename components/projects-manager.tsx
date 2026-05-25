@@ -156,7 +156,7 @@ export function ProjectsManager() {
         toast.error(data?.error || "刷新失败");
         return;
       }
-      toast.success(`已同步 ${data.count} 个项目`);
+      toast.success(`已同步 ${data.total} 个项目，新增 ${data.count} 个`);
       await reload();
     } finally {
       setRefreshing(false);

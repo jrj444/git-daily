@@ -70,6 +70,9 @@ export const POST = withErrors(async (req: Request) => {
       const projects = await listProjects(opts);
       let added = 0;
       for (const p of projects.slice(0, 500)) {
+        const existing = await prisma.project.findFirst({
+          where: { userId: u.id, gitlabProjectId: p.id },
+        });
         await prisma.project.upsert({
           where: {
             userId_gitlabProjectId: {
@@ -80,7 +83,6 @@ export const POST = withErrors(async (req: Request) => {
           update: {
             nameWithNamespace: p.name_with_namespace,
             webUrl: p.web_url,
-            defaultBranch: p.default_branch ?? undefined,
           },
           create: {
             userId: u.id,
@@ -91,9 +93,9 @@ export const POST = withErrors(async (req: Request) => {
             enabled: false,
           },
         });
-        added++;
+        if (!existing) added++;
       }
-      return NextResponse.json({ ok: true, count: added });
+      return NextResponse.json({ ok: true, count: added, total: projects.length });
     } catch (e: any) {
       return NextResponse.json(
         { error: `刷新失败：${e?.message || e}` },
@@ -119,20 +121,18 @@ export const POST = withErrors(async (req: Request) => {
     );
   }
 
-  const project = await prisma.project.upsert({
-    where: {
-      userId_gitlabProjectId: {
-        userId: u.id,
-        gitlabProjectId: p.id,
-      },
-    },
-    update: {
-      nameWithNamespace: p.name_with_namespace,
-      webUrl: p.web_url,
-      defaultBranch: p.default_branch ?? undefined,
-      enabled: true,
-    },
-    create: {
+  const existing = await prisma.project.findFirst({
+    where: { userId: u.id, gitlabProjectId: p.id },
+  });
+  if (existing) {
+    return NextResponse.json(
+      { error: `项目「${existing.alias || existing.nameWithNamespace}」已存在，无需重复添加` },
+      { status: 409 }
+    );
+  }
+
+  const project = await prisma.project.create({
+    data: {
       userId: u.id,
       gitlabProjectId: p.id,
       nameWithNamespace: p.name_with_namespace,

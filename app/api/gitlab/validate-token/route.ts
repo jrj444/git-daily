@@ -59,7 +59,6 @@ export const POST = withErrors(async (req: Request) => {
           update: {
             nameWithNamespace: p.name_with_namespace,
             webUrl: p.web_url,
-            defaultBranch: p.default_branch ?? undefined,
           },
           create: {
             userId: user.id,

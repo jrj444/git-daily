@@ -15,6 +15,13 @@
 - [README.md](file://README.md)
 </cite>
 
+## Update Summary
+**Changes Made**
+- Updated Docker Compose service configuration to use 'git-daily' image and container name
+- Updated project naming references to reflect the new 'git-daily' branding
+- Enhanced deployment examples to use the new 'git-daily' naming convention
+- Updated container orchestration references throughout the documentation
+
 ## Table of Contents
 1. [Introduction](#introduction)
 2. [Project Structure](#project-structure)
@@ -28,10 +35,10 @@
 10. [Appendices](#appendices)
 
 ## Introduction
-This document provides comprehensive deployment and operations guidance for Pingyun Report. It covers containerization with Docker, multi-stage builds, production deployment via Docker Compose, environment variable configuration, database connectivity, standalone Next.js build and deployment optimization, monitoring and maintenance, scaling and high availability, security hardening, and operational checklists including rollback and disaster recovery.
+This document provides comprehensive deployment and operations guidance for GitDaily (formerly Pingyun Report). It covers containerization with Docker, multi-stage builds, production deployment via Docker Compose, environment variable configuration, database connectivity, standalone Next.js build and deployment optimization, monitoring and maintenance, scaling and high availability, security hardening, and operational checklists including rollback and disaster recovery.
 
 ## Project Structure
-Pingyun Report is a Next.js 14 application with TypeScript, using Prisma for MySQL-backed persistence, NextAuth.js for credentials-based authentication, and a server-side GitLab integration. The repository includes:
+GitDaily is a Next.js 14 application with TypeScript, using Prisma for MySQL-backed persistence, NextAuth.js for credentials-based authentication, and a server-side GitLab integration. The repository includes:
 - Application code under app/ and components/
 - Shared libraries under lib/
 - Prisma schema and seed under prisma/
@@ -166,7 +173,7 @@ Migrate --> StartServer["Start server.js"]
 
 ### Docker Compose Deployment
 - Service definition
-  - Builds from repository root and assigns image and container name.
+  - Builds from repository root and assigns image and container name as 'git-daily'.
   - Publishes port 3000 and persists container lifecycle with restart policy.
 - Environment variables
   - DATABASE_URL, NEXTAUTH_URL, NEXTAUTH_SECRET, ENCRYPTION_KEY are required.
@@ -176,7 +183,7 @@ Migrate --> StartServer["Start server.js"]
 sequenceDiagram
 participant Dev as "Operator"
 participant Compose as "Docker Compose"
-participant App as "App Container"
+participant App as "git-daily Container"
 participant DB as "MySQL"
 Dev->>Compose : "docker compose up -d"
 Compose->>App : "Start container with env vars"
@@ -218,7 +225,7 @@ App-->>Dev : "Serve on 0.0.0.0 : 3000"
 - Client initialization
   - Singleton Prisma client with environment-specific logging.
 - Migration strategy
-  - Migrations are applied on startup via the container’s CMD.
+  - Migrations are applied on startup via the container's CMD.
 
 ```mermaid
 flowchart TD
@@ -352,7 +359,7 @@ Decrypt --> Mask["Mask token for display"]
   - Set environment variables (DATABASE_URL, NEXTAUTH_URL, NEXTAUTH_SECRET, ENCRYPTION_KEY).
   - Prepare MySQL database and network connectivity.
 - Deploy
-  - Build and start with Docker Compose.
+  - Build and start with Docker Compose using the 'git-daily' image.
   - Verify migrations applied and application responds.
 - Post-deploy
   - Seed initial admin user if needed.
@@ -364,10 +371,10 @@ Decrypt --> Mask["Mask token for display"]
 
 ### Rollback and Disaster Recovery
 - Rollback
-  - Revert to previous image tag and redeploy.
+  - Revert to previous image tag and redeploy using the 'git-daily' container.
   - Keep previous Prisma migration snapshots for quick rollback.
 - Disaster recovery
-  - Back up MySQL database regularly; restore to a new environment using the same Docker Compose configuration.
+  - Back up MySQL database regularly; restore to a new environment using the same Docker Compose configuration with the 'git-daily' naming convention.
 
 **Section sources**
 - [Dockerfile:42-44](file://Dockerfile#L42-L44)
@@ -412,8 +419,6 @@ Crypto["lib/crypto.ts"] --> EncKeys["ENCRYPTION_KEY"]
   - Add structured logging and metrics collection.
   - Monitor database latency and connection pool saturation.
 
-[No sources needed since this section provides general guidance]
-
 ## Troubleshooting Guide
 - Migration failures
   - Ensure DATABASE_URL is reachable and schema is compatible.
@@ -433,7 +438,7 @@ Crypto["lib/crypto.ts"] --> EncKeys["ENCRYPTION_KEY"]
 - [docker-compose.yml:8](file://docker-compose.yml#L8)
 
 ## Conclusion
-Pingyun Report is designed for straightforward containerized deployment with a robust multi-stage build, standalone runtime, and integrated Prisma migrations. By following the environment configuration, security hardening, and operational procedures outlined here, teams can reliably operate Pingyun Report in production with scalability, observability, and disaster recovery in mind.
+GitDaily is designed for straightforward containerized deployment with a robust multi-stage build, standalone runtime, and integrated Prisma migrations. By following the environment configuration, security hardening, and operational procedures outlined here, teams can reliably operate GitDaily in production with scalability, observability, and disaster recovery in mind.
 
 ## Appendices
 - API Surface

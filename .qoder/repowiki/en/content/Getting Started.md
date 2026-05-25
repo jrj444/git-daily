@@ -17,6 +17,13 @@
 - [app/api/gitlab/projects/route.ts](file://app/api/gitlab/projects/route.ts)
 </cite>
 
+## Update Summary
+**Changes Made**
+- Updated all references from "Pingyun Report" to "极报" (Extreme Report)
+- Updated project name references from "pingyun-report" to "git-daily"
+- Updated branding throughout the documentation to reflect the new Chinese name and English project identifier
+- Maintained all technical content while updating the project identity
+
 ## Table of Contents
 1. [Introduction](#introduction)
 2. [Project Structure](#project-structure)
@@ -30,7 +37,10 @@
 10. [Appendices](#appendices)
 
 ## Introduction
-Pingyun Report is a Next.js 14 full-stack application that generates daily reports from self-hosted GitLab commits. It supports multi-user accounts, MySQL persistence, optional AI polish via an OpenAI-compatible LLM, and secure storage of GitLab tokens. This guide walks you through prerequisites, installation, local development, first-time configuration, and production deployment with Docker Compose.
+**Updated** The project has been rebranded as "极报" (Extreme Report), a Next.js 14 full-stack application that generates daily reports from self-hosted GitLab commits. It supports multi-user accounts, MySQL persistence, optional AI polish via an OpenAI-compatible LLM, and secure storage of GitLab tokens. This guide walks you through prerequisites, installation, local development, first-time configuration, and production deployment with Docker Compose.
+
+**Section sources**
+- [README.md:1-3](file://README.md#L1-L3)
 
 ## Project Structure
 At a high level, the project consists of:
@@ -94,19 +104,19 @@ C4 --> C2
 - [next.config.mjs:1-11](file://next.config.mjs#L1-L11)
 - [Dockerfile:1-44](file://Dockerfile#L1-L44)
 - [docker-compose.yml:1-21](file://docker-compose.yml#L1-L21)
-- [package.json:1-47](file://package.json#L1-L47)
-- [prisma/schema.prisma:1-80](file://prisma/schema.prisma#L1-L80)
+- [package.json:1-48](file://package.json#L1-L48)
+- [prisma/schema.prisma:1-81](file://prisma/schema.prisma#L1-L81)
 - [prisma/seed.ts:1-63](file://prisma/seed.ts#L1-L63)
 - [lib/auth.ts:1-77](file://lib/auth.ts#L1-L77)
 - [lib/crypto.ts:1-46](file://lib/crypto.ts#L1-L46)
-- [lib/gitlab.ts:1-149](file://lib/gitlab.ts#L1-L149)
+- [lib/gitlab.ts:1-172](file://lib/gitlab.ts#L1-L172)
 - [lib/prisma.ts:1-14](file://lib/prisma.ts#L1-L14)
-- [app/api/gitlab/validate-token/route.ts:1-81](file://app/api/gitlab/validate-token/route.ts#L1-L81)
-- [app/api/gitlab/projects/route.ts:1-42](file://app/api/gitlab/projects/route.ts#L1-L42)
+- [app/api/gitlab/validate-token/route.ts:1-88](file://app/api/gitlab/validate-token/route.ts#L1-L88)
+- [app/api/gitlab/projects/route.ts:1-163](file://app/api/gitlab/projects/route.ts#L1-L163)
 
 **Section sources**
-- [README.md:1-86](file://README.md#L1-L86)
-- [package.json:1-47](file://package.json#L1-L47)
+- [README.md:129-179](file://README.md#L129-L179)
+- [package.json:1-48](file://package.json#L1-L48)
 - [next.config.mjs:1-11](file://next.config.mjs#L1-L11)
 
 ## Core Components
@@ -126,7 +136,7 @@ Key implementation references:
 **Section sources**
 - [lib/auth.ts:30-77](file://lib/auth.ts#L30-L77)
 - [lib/crypto.ts:7-46](file://lib/crypto.ts#L7-L46)
-- [lib/gitlab.ts:45-149](file://lib/gitlab.ts#L45-L149)
+- [lib/gitlab.ts:45-172](file://lib/gitlab.ts#L45-L172)
 - [lib/prisma.ts:7-14](file://lib/prisma.ts#L7-L14)
 - [prisma/seed.ts:19-53](file://prisma/seed.ts#L19-L53)
 
@@ -161,17 +171,17 @@ GIT --> GLAPI["GitLab REST API"]
 
 ### Prerequisites
 - Node.js 20.x
-- pnpm (used by the project scripts)
+- npm (used by the project scripts)
 - MySQL 5.7+ or compatible
 - Docker and Docker Compose for production deployment
 
 Verification steps:
-- Confirm Node.js and pnpm versions
+- Confirm Node.js and npm versions
 - Verify MySQL connectivity and database availability
 - Ensure Docker daemon is running for production deployment
 
 **Section sources**
-- [README.md:14-23](file://README.md#L14-L23)
+- [README.md:50-55](file://README.md#L50-L55)
 - [package.json:5-14](file://package.json#L5-L14)
 - [docker-compose.yml:1-21](file://docker-compose.yml#L1-L21)
 
@@ -191,11 +201,11 @@ Verification:
 - Access the app at the development port and log in with the seeded admin credentials.
 
 **Section sources**
-- [README.md:16-25](file://README.md#L16-L25)
+- [README.md:56-75](file://README.md#L56-L75)
 - [package.json:5-14](file://package.json#L5-L14)
 
 ### Environment Configuration
-Required environment variables (see the project’s documentation):
+Required environment variables (see the project's documentation):
 - DATABASE_URL: MySQL connection string
 - NEXTAUTH_URL: External URL of the application
 - NEXTAUTH_SECRET: Secret for NextAuth
@@ -208,7 +218,7 @@ Notes:
 - The seed script uses ADMIN_* variables to provision the initial admin.
 
 **Section sources**
-- [README.md:54-64](file://README.md#L54-L64)
+- [README.md:114-128](file://README.md#L114-L128)
 - [lib/crypto.ts:8-15](file://lib/crypto.ts#L8-L15)
 - [prisma/seed.ts:20-22](file://prisma/seed.ts#L20-L22)
 
@@ -227,11 +237,11 @@ Verify --> End(["Ready"])
 ```
 
 **Diagram sources**
-- [README.md:16-25](file://README.md#L16-L25)
+- [README.md:56-75](file://README.md#L56-L75)
 - [package.json:11-14](file://package.json#L11-L14)
 
 **Section sources**
-- [README.md:14-25](file://README.md#L14-L25)
+- [README.md:50-75](file://README.md#L50-L75)
 - [package.json:11-14](file://package.json#L11-L14)
 
 ### First-Time Configuration Workflow
@@ -273,14 +283,14 @@ UI-->>U : "Show project list and branches"
 - [lib/prisma.ts:7-14](file://lib/prisma.ts#L7-L14)
 
 **Section sources**
-- [README.md:27-33](file://README.md#L27-L33)
+- [README.md:91-98](file://README.md#L91-L98)
 - [app/api/gitlab/validate-token/route.ts:13-80](file://app/api/gitlab/validate-token/route.ts#L13-L80)
 - [app/api/gitlab/projects/route.ts:6-41](file://app/api/gitlab/projects/route.ts#L6-L41)
 
 ### Production Deployment with Docker Compose
 - Build and start the service using the provided compose file.
 - The container applies Prisma migrations on startup and runs the standalone server.
-- Configure environment variables via the compose file’s environment block.
+- Configure environment variables via the compose file's environment block.
 
 ```mermaid
 flowchart TD
@@ -296,7 +306,7 @@ Start --> Listen["Listen on port 3000"]
 - [Dockerfile:43-44](file://Dockerfile#L43-L44)
 
 **Section sources**
-- [README.md:46-52](file://README.md#L46-L52)
+- [README.md:99-113](file://README.md#L99-L113)
 - [docker-compose.yml:10-20](file://docker-compose.yml#L10-L20)
 - [Dockerfile:43-44](file://Dockerfile#L43-L44)
 
@@ -307,7 +317,7 @@ Start --> Listen["Listen on port 3000"]
 - Rotate the encryption key carefully: re-encrypt existing tokens or require users to re-enter their PAT.
 
 **Section sources**
-- [README.md:65-71](file://README.md#L65-L71)
+- [README.md:210-216](file://README.md#L210-L216)
 - [lib/crypto.ts:18-38](file://lib/crypto.ts#L18-L38)
 - [lib/gitlab.ts:3-4](file://lib/gitlab.ts#L3-L4)
 
@@ -341,8 +351,6 @@ Next --> LLM["Optional LLM"]
 - Keep Prisma client logs scoped to errors in production to reduce overhead.
 - Limit pagination and safety caps when fetching GitLab resources to avoid long-running requests.
 
-[No sources needed since this section provides general guidance]
-
 ## Troubleshooting Guide
 Common setup issues and resolutions:
 - Database connection failures
@@ -367,16 +375,14 @@ Verification steps:
 - Generate a test report and review the history view.
 
 **Section sources**
-- [README.md:14-25](file://README.md#L14-L25)
-- [README.md:54-64](file://README.md#L54-L64)
+- [README.md:50-55](file://README.md#L50-L55)
+- [README.md:114-128](file://README.md#L114-L128)
 - [lib/crypto.ts:8-15](file://lib/crypto.ts#L8-L15)
 - [lib/gitlab.ts:58-80](file://lib/gitlab.ts#L58-L80)
 - [docker-compose.yml:10-20](file://docker-compose.yml#L10-L20)
 
 ## Conclusion
-You now have the essentials to install, configure, and run Pingyun Report locally and in production. Complete the first-time configuration by connecting GitLab, selecting projects, and customizing templates. For production, rely on the provided Docker Compose setup and ensure environment variables are correctly configured.
-
-[No sources needed since this section summarizes without analyzing specific files]
+You now have the essentials to install, configure, and run 极报 (Extreme Report) locally and in production. Complete the first-time configuration by connecting GitLab, selecting projects, and customizing templates. For production, rely on the provided Docker Compose setup and ensure environment variables are correctly configured.
 
 ## Appendices
 
@@ -389,5 +395,5 @@ You now have the essentials to install, configure, and run Pingyun Report locall
 - ADMIN_USERNAME / ADMIN_PASSWORD / ADMIN_DISPLAY_NAME: Seed-only initial admin
 
 **Section sources**
-- [README.md:54-64](file://README.md#L54-L64)
+- [README.md:114-128](file://README.md#L114-L128)
 - [docker-compose.yml:10-20](file://docker-compose.yml#L10-L20)

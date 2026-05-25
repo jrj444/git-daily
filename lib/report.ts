@@ -26,7 +26,7 @@ export type ReportContext = {
   user: { displayName: string; email?: string };
 };
 
-const CONVENTIONAL_RE = /^(\w+)(?:\(([^)]+)\))?:\s*(.+)$/;
+const CONVENTIONAL_RE = /^(\w+)(?:[（(]([^）)]+)[）)])?[：:]\s*(.+)$/;
 
 export function parseConventional(message: string): {
   type?: string;

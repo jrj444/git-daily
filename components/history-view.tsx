@@ -24,7 +24,7 @@ export function HistoryView() {
   const [saving, setSaving] = useState(false);
 
   // Export state
-  const [showExport, setShowExport] = useState(false);
+  const [showExport, setShowExport] = useState(true);
   const [exportStart, setExportStart] = useState(dayjs().startOf("month").format("YYYY-MM-DD"));
   const [exportEnd, setExportEnd] = useState(dayjs().format("YYYY-MM-DD"));
   const [exporting, setExporting] = useState(false);

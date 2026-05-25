@@ -32,14 +32,16 @@
 - [tailwind.config.ts](file://tailwind.config.ts)
 - [globals.css](file://app/globals.css)
 - [package.json](file://package.json)
+- [login/page.tsx](file://app/login/page.tsx)
+- [README.md](file://README.md)
 </cite>
 
 ## Update Summary
 **Changes Made**
-- Enhanced HistoryView component with automatic today's date selection and content loading functionality
-- Improved user experience by eliminating manual date selection steps
-- Added automatic content loading on component mount for better performance
-- Maintained all existing functionality while streamlining the user workflow
+- Updated Login Page branding with new PNG logo and consistent "极报" brand name throughout UI
+- Enhanced Navigation component with rebranded visual identity
+- Updated application metadata to reflect "极报 - GitDaily" branding
+- Integrated consistent rebranding across all navigation elements and user interface components
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -57,8 +59,10 @@
 ## Introduction
 This document explains the frontend component architecture of Pingyun Report, focusing on the main layout and navigation system, the report editor with markdown editing and live preview, navigation with route protection, state management patterns, styling via Tailwind CSS with comprehensive dark mode theming, responsive design, accessibility, cross-browser compatibility, lifecycle management, error handling, and performance optimization. It also provides integration and customization patterns for extending the system with the newly added StatsView, ProjectsManager, TemplatesManager components, and the comprehensive dark mode theming system.
 
+**Updated** The application now features a complete rebranding with the "极报" (Jibao) brand identity, including a new PNG logo, consistent brand messaging, and unified visual design across all user interface elements.
+
 ## Project Structure
-The application follows a Next.js App Router layout with a root layout, providers wrapper, and page-level components. Navigation is shared across pages with integrated theme switching, and several domain-specific components handle editing, history viewing, settings, admin views, statistics, project management, and template management. Authentication is handled by NextAuth with JWT strategy and middleware-based route protection. The theming system is seamlessly integrated throughout the application.
+The application follows a Next.js App Router layout with a root layout, providers wrapper, and page-level components. Navigation is shared across pages with integrated theme switching, and several domain-specific components handle editing, history viewing, settings, admin views, statistics, project management, and template management. Authentication is handled by NextAuth with JWT strategy and middleware-based route protection. The theming system is seamlessly integrated throughout the application with the new "极报" brand identity.
 
 ```mermaid
 graph TB
@@ -71,6 +75,7 @@ SP["Stats Page<br/>app/stats/page.tsx"]
 PP["Projects Page<br/>app/projects/page.tsx"]
 TP["Templates Page<br/>app/templates/page.tsx"]
 HPG["History Page<br/>app/history/page.tsx"]
+LP["Login Page<br/>app/login/page.tsx"]
 end
 subgraph "Components"
 N["Nav<br/>components/nav.tsx"]
@@ -96,6 +101,7 @@ end
 subgraph "Styling"
 UT["Utility Helper<br/>lib/utils.ts"]
 end
+L --> P --> LP
 L --> P --> HP
 HP --> N
 HP --> RE
@@ -117,6 +123,7 @@ SP --> SESS
 PP --> SESS
 TP --> SESS
 HPG --> SESS
+LP --> AU
 RE --> UT
 HV --> UT
 SF --> UT
@@ -150,7 +157,8 @@ TT --> NT
 - [projects/page.tsx:1-27](file://app/projects/page.tsx#L1-L27)
 - [templates/page.tsx:1-27](file://app/templates/page.tsx#L1-L27)
 - [history/page.tsx:1-21](file://app/history/page.tsx#L1-L21)
-- [nav.tsx:1-176](file://components/nav.tsx#L1-L176)
+- [login/page.tsx:1-164](file://app/login/page.tsx#L1-L164)
+- [nav.tsx:1-177](file://components/nav.tsx#L1-L177)
 - [report-editor.tsx:1-296](file://components/report-editor.tsx#L1-L296)
 - [history-view.tsx:1-330](file://components/history-view.tsx#L1-L330)
 - [settings-form.tsx:1-368](file://components/settings-form.tsx#L1-L368)
@@ -176,7 +184,8 @@ TT --> NT
 - [projects/page.tsx:1-27](file://app/projects/page.tsx#L1-L27)
 - [templates/page.tsx:1-27](file://app/templates/page.tsx#L1-L27)
 - [history/page.tsx:1-21](file://app/history/page.tsx#L1-L21)
-- [nav.tsx:1-176](file://components/nav.tsx#L1-L176)
+- [login/page.tsx:1-164](file://app/login/page.tsx#L1-L164)
+- [nav.tsx:1-177](file://components/nav.tsx#L1-L177)
 - [report-editor.tsx:1-296](file://components/report-editor.tsx#L1-L296)
 - [history-view.tsx:1-330](file://components/history-view.tsx#L1-L330)
 - [settings-form.tsx:1-368](file://components/settings-form.tsx#L1-L368)
@@ -205,11 +214,12 @@ TT --> NT
 - Projects Manager: Manages GitLab project list, enables/disables projects, sets aliases and default branches, adds/removes projects, and bulk operations with theme-aware tables.
 - Templates Manager: Handles Handlebars template editing, preview generation, placeholder reference, and template CRUD operations with theme-aware editors.
 - Theme Toggle: Provides three-state theme switching (light → dark → system) with semantic icons and proper hydration handling.
+- Login Page: Features the new "极报" brand identity with PNG logo, consistent typography, and rebranded visual design.
 
 **Section sources**
 - [layout.tsx:1-36](file://app/layout.tsx#L1-L36)
 - [providers.tsx:1-18](file://app/providers.tsx#L1-L18)
-- [nav.tsx:1-176](file://components/nav.tsx#L1-L176)
+- [nav.tsx:1-177](file://components/nav.tsx#L1-L177)
 - [report-editor.tsx:1-296](file://components/report-editor.tsx#L1-L296)
 - [history-view.tsx:1-330](file://components/history-view.tsx#L1-L330)
 - [settings-form.tsx:1-368](file://components/settings-form.tsx#L1-L368)
@@ -219,6 +229,7 @@ TT --> NT
 - [projects-manager.tsx:1-343](file://components/projects-manager.tsx#L1-L343)
 - [templates-manager.tsx:1-492](file://components/templates-manager.tsx#L1-L492)
 - [theme-toggle.tsx:1-103](file://components/theme-toggle.tsx#L1-L103)
+- [login/page.tsx:1-164](file://app/login/page.tsx#L1-L164)
 
 ## Architecture Overview
 The frontend architecture centers around:
@@ -228,6 +239,7 @@ The frontend architecture centers around:
 - NextAuth for authentication and middleware for route protection.
 - Tailwind CSS with comprehensive dark mode theming system using CSS custom properties and next-themes integration.
 - Enhanced navigation system supporting new domain-specific components for statistics, project management, template management, and theme switching.
+- **Updated** Complete rebranding with "极报" visual identity across all components.
 
 ```mermaid
 sequenceDiagram
@@ -256,7 +268,7 @@ History-->>Browser : Auto-select today's date and load content on mount
 - [middleware.ts:1-10](file://middleware.ts#L1-L10)
 - [history/page.tsx:1-21](file://app/history/page.tsx#L1-L21)
 - [providers.tsx:1-18](file://app/providers.tsx#L1-L18)
-- [nav.tsx:1-176](file://components/nav.tsx#L1-L176)
+- [nav.tsx:1-177](file://components/nav.tsx#L1-L177)
 - [theme-toggle.tsx:1-103](file://components/theme-toggle.tsx#L1-L103)
 - [history-view.tsx:158-166](file://components/history-view.tsx#L158-L166)
 
@@ -268,16 +280,19 @@ History-->>Browser : Auto-select today's date and load content on mount
   - Highlight active route using pathname comparison with enhanced route matching.
   - Display current username and sign-out action.
   - Integrate ThemeToggle component for user-controlled theme switching.
+  - **Updated** Feature the new "极报" brand identity with PNG logo and consistent typography.
 - Implementation highlights:
   - Uses Next.js router hooks for pathname and navigation.
   - Conditionally renders admin-only links based on user role.
   - Integrates with NextAuth for sign-out and redirects to login.
   - Enhanced route matching supports nested routes like "/admin/team-reports".
   - Theme toggle positioned in desktop and mobile navigation layouts.
+  - **Updated** Brand logo uses PNG format with "极报" text for consistent visual identity.
 - Styling and composition:
   - Uses Tailwind utilities for spacing, borders, and color tokens.
   - Utility helper merges classes safely.
   - Theme-aware styling with semantic color classes.
+  - **Updated** Consistent brand styling across all navigation elements.
 
 ```mermaid
 flowchart TD
@@ -288,7 +303,8 @@ CheckRole --> |Yes| AddAdmin["Add admin links"]
 CheckRole --> |No| SkipAdmin["Skip admin links"]
 AddAdmin --> RenderNav["Render header + nav + user actions"]
 SkipAdmin --> RenderNav
-RenderNav --> ThemeToggle["Render ThemeToggle component"]
+RenderNav --> Branding["Display '极报' brand with PNG logo"]
+Branding --> ThemeToggle["Render ThemeToggle component"]
 ThemeToggle --> End(["Done"])
 ```
 
@@ -298,8 +314,63 @@ ThemeToggle --> End(["Done"])
 - [nav.tsx:162](file://components/nav.tsx#L162)
 
 **Section sources**
-- [nav.tsx:1-176](file://components/nav.tsx#L1-L176)
+- [nav.tsx:1-177](file://components/nav.tsx#L1-L177)
 - [utils.ts:1-7](file://lib/utils.ts#L1-L7)
+
+### Login Page Component
+**Updated** Complete visual redesign with new PNG logo and consistent "极报" brand identity.
+
+- Responsibilities:
+  - Provide secure authentication interface with credential-based login.
+  - Display the new "极报" brand identity with PNG logo and consistent typography.
+  - Handle user credentials submission and error feedback.
+  - Support password visibility toggle and form validation.
+- Implementation highlights:
+  - Uses NextAuth credentials provider for authentication.
+  - Implements form validation with React state management.
+  - Features decorative gradient backgrounds with primary color accents.
+  - **Updated** Incorporates new PNG logo with "极报" brand name and subtitle.
+  - Responsive design with centered card layout and proper spacing.
+  - Toast notifications for authentication errors.
+- Visual Design:
+  - **Updated** Primary branding with PNG logo (20x20px) featuring rounded corners and subtle shadow.
+  - **Updated** "极报" brand name in large, bold typography with tracking adjustment.
+  - **Updated** Subtitle "GitLab 日报生成助手" (GitLab Daily Report Generator) for clarity.
+  - Decorative gradient circles in primary color with varying opacity for depth.
+  - Card-based form layout with proper spacing and shadow effects.
+  - **Updated** Consistent color scheme using theme-aware Tailwind classes.
+- UX Improvements:
+  - **Updated** Immediate brand recognition with prominent logo and brand name.
+  - **Updated** Clear visual hierarchy with logo, brand name, and subtitle.
+  - **Updated** Consistent styling across all form elements with theme-aware colors.
+  - Password visibility toggle with accessible icons.
+  - Loading states during authentication attempts.
+  - Error handling with user-friendly toast notifications.
+
+```mermaid
+sequenceDiagram
+participant User as "User"
+participant Login as "LoginPage"
+participant Auth as "NextAuth"
+User->>Login : Visit /login
+Login->>Login : Display '极报' branding with PNG logo
+Login->>Login : Render form with username/password fields
+User->>Login : Enter credentials
+Login->>Auth : signIn('credentials', {username, password})
+Auth-->>Login : Authentication result
+alt Success
+Login->>Login : Redirect to callbackUrl
+else Error
+Login->>Login : Show error toast "用户名或密码错误"
+end
+```
+
+**Diagram sources**
+- [login/page.tsx:18-33](file://app/login/page.tsx#L18-L33)
+- [login/page.tsx:21-30](file://app/login/page.tsx#L21-L30)
+
+**Section sources**
+- [login/page.tsx:1-164](file://app/login/page.tsx#L1-L164)
 
 ### History View Component
 **Updated** Enhanced with automatic today's date selection and content loading functionality for improved user experience.
@@ -663,7 +734,7 @@ flowchart TD
 Start(["Open Users Admin"]) --> Load["GET /api/admin/users"]
 Load --> Create["POST /api/admin/users (create)"]
 Create --> UpdateRole["PATCH /api/admin/users (role)"]
-UpdateRole --> ResetPwd["PATCH /api/admin/users (password)"]
+UpdateRole --> ResetPwd["PATCH /api/admin/users (password)]
 ResetPwd --> Delete["DELETE /api/admin/users"]
 Delete --> Reload["Reload users list"]
 Reload --> End(["Done"])
@@ -717,7 +788,7 @@ end
 ## Dark Mode Theming System
 
 ### Overview
-The application implements a comprehensive dark mode theming system using next-themes integration with CSS custom properties for semantic theming. This system provides automatic theme detection, manual theme switching, and consistent styling across all components.
+The application implements a comprehensive dark mode theming system using next-themes integration with CSS custom properties for semantic theming. This system provides automatic theme detection, manual theme switching, and consistent styling across all components with the new "极报" brand identity.
 
 ### Implementation Architecture
 - **next-themes Provider**: Wraps the application with ThemeProvider that manages theme state and persistence.
@@ -761,7 +832,7 @@ All domain components integrate with the theming system:
 - Proper contrast ratios in both light and dark modes
 
 ### Benefits
-- **Consistent Experience**: Unified theming across all components and pages
+- **Consistent Experience**: Unified theming across all components and pages with "极报" brand identity
 - **User Control**: Manual theme switching with persistent preferences
 - **System Integration**: Automatic detection of OS theme preference
 - **Accessibility**: Proper contrast ratios and color scheme support
@@ -788,6 +859,7 @@ All domain components integrate with the theming system:
   - ProjectsManager depends on API route for GitLab project management.
   - TemplatesManager depends on API routes for template CRUD and preview.
   - ThemeToggle depends on next-themes for theme state management.
+  - **Updated** Login page depends on NextAuth for authentication and uses new PNG logo.
 - External libraries:
   - NextAuth for authentication and session management.
   - @uiw/react-md-editor for markdown editing and preview with theme-aware rendering.
@@ -809,6 +881,7 @@ SP --> SV["components/stats-view.tsx"]
 PP["app/projects/page.tsx"] --> PM["components/projects-manager.tsx"]
 TP["app/templates/page.tsx"] --> TM["components/templates-manager.tsx"]
 HPG["app/history/page.tsx"] --> HV["components/history-view.tsx"]
+LP["app/login/page.tsx"] --> AU["lib/auth.ts"]
 Nav --> TT["components/theme-toggle.tsx"]
 Nav --> Auth["lib/auth.ts"]
 RE --> MD["@uiw/react-md-editor"]
@@ -847,7 +920,8 @@ TT --> NT["next-themes"]
 - [projects/page.tsx:1-27](file://app/projects/page.tsx#L1-L27)
 - [templates/page.tsx:1-27](file://app/templates/page.tsx#L1-L27)
 - [history/page.tsx:1-21](file://app/history/page.tsx#L1-L21)
-- [nav.tsx:1-176](file://components/nav.tsx#L1-L176)
+- [login/page.tsx:1-164](file://app/login/page.tsx#L1-L164)
+- [nav.tsx:1-177](file://components/nav.tsx#L1-L177)
 - [report-editor.tsx:1-296](file://components/report-editor.tsx#L1-L296)
 - [history-view.tsx:1-330](file://components/history-view.tsx#L1-L330)
 - [settings-form.tsx:1-368](file://components/settings-form.tsx#L1-L368)
@@ -875,7 +949,8 @@ TT --> NT["next-themes"]
 - [projects/page.tsx:1-27](file://app/projects/page.tsx#L1-L27)
 - [templates/page.tsx:1-27](file://app/templates/page.tsx#L1-L27)
 - [history/page.tsx:1-21](file://app/history/page.tsx#L1-L21)
-- [nav.tsx:1-176](file://components/nav.tsx#L1-L176)
+- [login/page.tsx:1-164](file://app/login/page.tsx#L1-L164)
+- [nav.tsx:1-177](file://components/nav.tsx#L1-L177)
 - [report-editor.tsx:1-296](file://components/report-editor.tsx#L1-L296)
 - [history-view.tsx:1-330](file://components/history-view.tsx#L1-L330)
 - [settings-form.tsx:1-368](file://components/settings-form.tsx#L1-L368)
@@ -902,6 +977,7 @@ TT --> NT["next-themes"]
   - Heavy components like StatsView, ProjectsManager, and TemplatesManager are client-only.
   - ThemeToggle uses hydration-safe mounting to prevent SSR mismatches.
   - **Enhanced**: HistoryView benefits from automatic content loading optimization.
+  - **Updated** Login page uses optimized PNG logo for fast loading.
 - State stability:
   - useCallback used for event handlers and callbacks to prevent unnecessary re-renders.
   - useMemo used for derived data (e.g., enabled projects, filtered projects).
@@ -926,9 +1002,11 @@ TT --> NT["next-themes"]
 - Authentication issues:
   - Ensure middleware matcher covers protected routes and NextAuth pages are configured correctly.
   - Verify session retrieval helpers return expected user shape.
+  - **Updated** Check that login page properly displays PNG logo and "极报" brand name.
 - Navigation and route protection:
   - Confirm middleware matcher includes intended paths and redirects to login when missing session.
   - Check that new navigation items (Statistics, Projects, Templates) are properly integrated.
+  - **Updated** Verify that navigation component displays consistent "极报" branding.
 - Editor and API errors:
   - Check toast messages for explicit error feedback from API responses.
   - Validate that report generation and saving endpoints return expected shapes.
@@ -944,6 +1022,7 @@ TT --> NT["next-themes"]
   - Confirm Tailwind content paths include app and components directories.
   - Use responsive utilities consistently (e.g., grid columns) and test across screen sizes.
   - Check that new components properly utilize Tailwind utility classes.
+  - **Updated** Verify that new PNG logo loads correctly across different devices and browsers.
 - Theme system issues:
   - Verify next-themes is properly installed and configured.
   - Check that CSS custom properties are defined in globals.css.
@@ -951,6 +1030,7 @@ TT --> NT["next-themes"]
   - Test theme switching functionality across different browsers and devices.
   - Verify semantic color classes are used consistently throughout components.
   - **Enhanced**: HistoryView theme integration works seamlessly with automatic content loading.
+  - **Updated** Confirm that "极报" brand styling is consistent across light and dark themes.
 
 **Section sources**
 - [middleware.ts:1-10](file://middleware.ts#L1-L10)
@@ -965,11 +1045,15 @@ TT --> NT["next-themes"]
 - [theme-toggle.tsx:14-21](file://components/theme-toggle.tsx#L14-L21)
 - [globals.css:5-27](file://app/globals.css#L5-L27)
 - [providers.tsx:8-12](file://app/providers.tsx#L8-L12)
+- [login/page.tsx:49-55](file://app/login/page.tsx#L49-L55)
+- [nav.tsx:65-68](file://components/nav.tsx#L65-L68)
 
 ## Conclusion
-The Pingyun Report frontend is structured around a clean layout and providers layer with comprehensive dark mode theming system, robust client-side components for editing, history, settings, admin views, statistics, project management, and template management. The theming system provides seamless light/dark mode switching with semantic color management, ensuring consistent user experience across all components. Authentication is enforced via NextAuth and middleware, while Tailwind CSS with CSS custom properties and next-themes integration streamline styling and composition. The components emphasize user experience with live previews, clear feedback, responsive layouts, and proper accessibility support, all enhanced by the comprehensive theming system. 
+The Pingyun Report frontend is structured around a clean layout and providers layer with comprehensive dark mode theming system, robust client-side components for editing, history, settings, admin views, statistics, project management, and template management. The theming system provides seamless light/dark mode switching with semantic color management, ensuring consistent user experience across all components with the new "极报" brand identity. Authentication is enforced via NextAuth and middleware, while Tailwind CSS with CSS custom properties and next-themes integration streamline styling and composition. The components emphasize user experience with live previews, clear feedback, responsive layouts, and proper accessibility support, all enhanced by the comprehensive theming system.
 
 **Recent Enhancement**: The HistoryView component has been significantly improved with automatic today's date selection and content loading functionality, providing users with a streamlined workflow that eliminates manual date selection steps. This enhancement maintains all existing functionality while dramatically improving the user experience for daily report access and editing.
+
+**Updated** The application has undergone a complete rebranding with the "极报" (Jibao) visual identity, featuring a new PNG logo, consistent brand messaging, and unified design language across all user interface elements. The login page now prominently displays the "极报" brand with its new visual identity, while the navigation component consistently reflects the rebranded design throughout the application.
 
 The addition of StatsView, ProjectsManager, TemplatesManager, and the dark mode theming system significantly enhances the system's capabilities for comprehensive development workflow management with modern, accessible, and maintainable frontend architecture.
 
@@ -985,11 +1069,13 @@ The addition of StatsView, ProjectsManager, TemplatesManager, and the dark mode 
   - Utility helper merges classes safely to avoid duplicates and conflicts.
   - New components follow consistent styling patterns with card-based layouts and responsive grids.
   - Theme-aware components use useTheme hook for proper color mode detection.
+  - **Updated** All components incorporate the new "极报" brand identity with consistent visual design.
 - Responsive design:
   - Use of grid and flex utilities with breakpoints to adapt to different screen sizes.
   - Mobile-first approach with hamburger menu for navigation.
   - Adaptive layouts for new components (split-pane for TemplatesManager, expandable sections for StatsView).
   - Theme-aware responsive design ensures proper contrast in both light and dark modes.
+  - **Updated** Login page features optimized responsive design for the new branding.
 - Accessibility:
   - Semantic HTML and labels; disabled states for buttons during async operations.
   - Proper ARIA attributes for interactive elements.
@@ -999,11 +1085,12 @@ The addition of StatsView, ProjectsManager, TemplatesManager, and the dark mode 
   - Modern CSS variables and Tailwind utilities are broadly supported; test critical interactions across browsers.
   - next-themes provides fallbacks for older browsers.
   - CSS custom properties ensure graceful degradation when unsupported.
+  - **Updated** PNG logo format ensures broad browser compatibility for the new branding.
 
 **Section sources**
 - [tailwind.config.ts:1-26](file://tailwind.config.ts#L1-L26)
 - [utils.ts:1-7](file://lib/utils.ts#L1-L7)
-- [nav.tsx:20-176](file://components/nav.tsx#L20-L176)
+- [nav.tsx:20-177](file://components/nav.tsx#L20-L177)
 - [report-editor.tsx:172-296](file://components/report-editor.tsx#L172-L296)
 - [history-view.tsx:89-330](file://components/history-view.tsx#L89-L330)
 - [settings-form.tsx:193-367](file://components/settings-form.tsx#L193-L367)
@@ -1014,6 +1101,7 @@ The addition of StatsView, ProjectsManager, TemplatesManager, and the dark mode 
 - [templates-manager.tsx:276-492](file://components/templates-manager.tsx#L276-L492)
 - [theme-toggle.tsx:1-103](file://components/theme-toggle.tsx#L1-L103)
 - [globals.css:1-44](file://app/globals.css#L1-L44)
+- [login/page.tsx:49-55](file://app/login/page.tsx#L49-L55)
 
 ### Component Integration and Customization Patterns
 - Integration:
@@ -1022,7 +1110,8 @@ The addition of StatsView, ProjectsManager, TemplatesManager, and the dark mode 
   - Use dynamic imports for heavy components (e.g., markdown editor, new domain components) to optimize load.
   - Implement proper route protection for new pages (Statistics, Projects, Templates).
   - Integrate ThemeToggle component into navigation for user-controlled theme switching.
-  - **Enhanced**: HistoryView integrates automatic content loading seamlessly with existing workflow.
+  - **Enhanced** HistoryView integrates automatic content loading seamlessly with existing workflow.
+  - **Updated** Login page integrates with NextAuth for authentication and displays new "极报" branding.
 - Customization:
   - Extend templates and project filtering logic in domain components.
   - Add new admin features by following the UsersAdmin pattern (CRUD + confirmations).
@@ -1033,7 +1122,8 @@ The addition of StatsView, ProjectsManager, TemplatesManager, and the dark mode 
   - Customize theming by modifying CSS custom properties in globals.css.
   - Extend theme system by adding new semantic color classes to Tailwind config.
   - Implement additional theme-aware components using useTheme hook pattern.
-  - **Enhanced**: HistoryView enhancement demonstrates best practices for automatic state initialization and content loading.
+  - **Enhanced** HistoryView enhancement demonstrates best practices for automatic state initialization and content loading.
+  - **Updated** All components can be customized to maintain the "极报" brand identity consistently.
 
 **Section sources**
 - [providers.tsx:1-18](file://app/providers.tsx#L1-L18)
@@ -1043,6 +1133,7 @@ The addition of StatsView, ProjectsManager, TemplatesManager, and the dark mode 
 - [projects/page.tsx:8-27](file://app/projects/page.tsx#L8-L27)
 - [templates/page.tsx:8-27](file://app/templates/page.tsx#L8-L27)
 - [history/page.tsx:8-21](file://app/history/page.tsx#L8-L21)
+- [login/page.tsx:1-164](file://app/login/page.tsx#L1-L164)
 - [report-editor.tsx:9](file://components/report-editor.tsx#L9)
 - [users-admin.tsx:33-87](file://components/users-admin.tsx#L33-L87)
 - [middleware.ts:7-9](file://middleware.ts#L7-L9)
