@@ -18,18 +18,19 @@
 - [route.ts](file://app/api/notifications/route.ts)
 - [route.ts](file://app/api/notifications/stream/route.ts)
 - [notify.ts](file://lib/notify.ts)
+- [redis.ts](file://lib/redis.ts)
 - [Dockerfile](file://Dockerfile)
 - [package.json](file://package.json)
 </cite>
 
 ## Update Summary
 **Changes Made**
-- Added new Comment, Like, and Notification tables with comprehensive relationships to existing User and Report models
-- Updated schema documentation to include three new entity models with their constraints and indexes
-- Enhanced data relationships section to reflect social interaction features and real-time notifications
-- Added new sections documenting comment functionality, like system, and notification management
-- Updated core components section with new social features and real-time communication capabilities
-- Added new section documenting notification streaming via Server-Sent Events and Redis pub/sub
+- Enhanced notification streaming system documentation to include Redis pub/sub architecture
+- Added real-time Server-Sent Events (SSE) implementation details
+- Documented new notification creation patterns with automatic Redis publishing
+- Updated social interaction features to include real-time notification delivery
+- Added Redis connection management and SSE streaming architecture
+- Enhanced notification system performance considerations and scalability
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -47,7 +48,7 @@
 This document provides comprehensive database design documentation for Pingyun Report's data model. It covers the Prisma schema for Users, Projects, Reports, Templates, Comments, Likes, and Notifications, including entity definitions, relationships, constraints, indexes, and referential integrity. The schema now supports social interaction features including commenting, liking, and real-time notifications with Redis pub/sub integration. It also documents seed data creation, initial admin user setup, data validation rules, business constraints, data access patterns via the Prisma client, query optimization strategies, and migration procedures for schema evolution.
 
 ## Project Structure
-The database design is defined in Prisma schema and enforced by the Prisma client. Application APIs interact with the database through the Prisma client, while seed scripts initialize baseline data. The deployment pipeline ensures migrations are applied at runtime. The schema now includes comprehensive social interaction features that enable users to engage with each other's reports through comments, likes, and real-time notifications.
+The database design is defined in Prisma schema and enforced by the Prisma client. Application APIs interact with the database through the Prisma client, while seed scripts initialize baseline data. The deployment pipeline ensures migrations are applied at runtime. The schema now includes comprehensive social interaction features that enable users to engage with each other's reports through comments, likes, and real-time notifications with Redis pub/sub integration.
 
 ```mermaid
 graph TB
@@ -301,6 +302,8 @@ DB-->>Prisma : "OK"
 API->>Prisma : "create notification for report owner"
 Prisma->>DB : "INSERT notification row"
 DB-->>Prisma : "OK"
+API->>Prisma : "publish to Redis channel"
+Prisma-->>API : "Notification published"
 API-->>User : "Comment with author info"
 ```
 
@@ -585,14 +588,17 @@ API-->>User : "ok"
   - Redis channels per user (`notifications:{userId}`)
   - SSE endpoint that maintains persistent connections
   - Automatic heartbeat messages to keep connections alive
+  - Publisher-subscriber pattern for scalable real-time delivery
 - Features:
   - Instant notification delivery when new events occur
   - Automatic cleanup on client disconnect
   - Dynamic unread count updates
+  - Lightweight SSE connections with minimal server resources
 - Performance:
-  - Lightweight SSE connections
-  - Efficient Redis pub/sub messaging
-  - Minimal server resource usage
+  - Each SSE connection gets its own Redis subscriber instance
+  - Publisher is a singleton for efficient Redis connections
+  - Automatic connection cleanup prevents memory leaks
+  - Heartbeat mechanism maintains connection health
 
 ```mermaid
 sequenceDiagram
@@ -602,21 +608,107 @@ participant Redis as "Redis Pub/Sub"
 participant Prisma as "Prisma Client"
 Client->>SSE : "GET /api/notifications/stream"
 SSE->>Redis : "subscribe notifications : {userId}"
-SSE->>SSE : "send heartbeat"
+SSE->>SSE : "send initial heartbeat"
 Redis-->>SSE : "publish notification event"
 SSE->>Prisma : "count unread notifications"
 SSE-->>Client : "SSE data with latest notification"
 Client->>SSE : "disconnect"
-SSE->>Redis : "unsubscribe and quit"
+SSE->>Redis : "unsubscribe and cleanup"
+SSE->>SSE : "close connection gracefully"
 ```
 
 **Diagram sources**
 - [route.ts:7-65](file://app/api/notifications/stream/route.ts#L7-L65)
 - [notify.ts:16-24](file://lib/notify.ts#L16-L24)
+- [redis.ts:1-17](file://lib/redis.ts#L1-L17)
 
 **Section sources**
 - [route.ts:1-65](file://app/api/notifications/stream/route.ts#L1-L65)
-- [notify.ts:1-25](file://lib/notify.ts#L1-25)
+- [notify.ts:1-25](file://lib/notify.ts#L1-L25)
+- [redis.ts:1-17](file://lib/redis.ts#L1-L17)
+
+### Redis Pub/Sub Integration
+- Purpose: Enables scalable real-time notification delivery using Redis pub/sub pattern.
+- Architecture:
+  - Singleton publisher for efficient Redis connections
+  - Per-connection subscriber instances for isolation
+  - Channel naming convention: `notifications:{userId}`
+  - Message serialization using JSON format
+- Connection Management:
+  - Publisher connection reused across notifications
+  - Subscriber connections created per SSE stream
+  - Automatic cleanup on stream termination
+  - Error handling for connection failures
+- Scalability:
+  - Horizontal scaling through multiple Redis instances
+  - Load distribution across subscribers
+  - Memory-efficient message handling
+  - Connection pooling for optimal performance
+
+```mermaid
+graph TB
+subgraph "Redis Pub/Sub Architecture"
+Publisher["Singleton Publisher<br/>getPublisher()"]
+Subscriber["Per-Connection Subscriber<br/>createSubscriber()"]
+Channel["Channel: notifications:{userId}"]
+Message["JSON Message Format"]
+end
+subgraph "Application Components"
+NotifyLib["lib/notify.ts<br/>createNotification()"]
+StreamAPI["app/api/notifications/stream/route.ts<br/>SSE Handler"]
+RedisLib["lib/redis.ts<br/>Connection Management"]
+end
+Publisher --> Channel
+Channel --> Subscriber
+Subscriber --> StreamAPI
+NotifyLib --> Publisher
+NotifyLib --> Message
+RedisLib --> Publisher
+RedisLib --> Subscriber
+```
+
+**Diagram sources**
+- [notify.ts:16-24](file://lib/notify.ts#L16-L24)
+- [route.ts:13-14](file://app/api/notifications/stream/route.ts#L13-L14)
+- [redis.ts:7-16](file://lib/redis.ts#L7-L16)
+
+**Section sources**
+- [notify.ts:1-25](file://lib/notify.ts#L1-L25)
+- [route.ts:13-14](file://app/api/notifications/stream/route.ts#L13-L14)
+- [redis.ts:1-17](file://lib/redis.ts#L1-L17)
+
+### Notification Creation Patterns
+- Purpose: Standardized approach to creating notifications with automatic Redis publishing.
+- Pattern:
+  - Database creation via Prisma client
+  - Redis publish to user-specific channel
+  - Atomic operation with error handling
+  - JSON serialization for message format
+- Implementation:
+  - Input validation and sanitization
+  - User permission verification
+  - Type-safe notification creation
+  - Automatic message routing
+- Error Handling:
+  - Redis publish failures are logged and ignored
+  - Database operations maintain ACID properties
+  - Graceful degradation for real-time features
+  - Connection recovery mechanisms
+
+```mermaid
+flowchart TD
+Start(["createNotification()"]) --> Validate["Validate input parameters"]
+Validate --> CreateDB["Prisma notification.create()"]
+CreateDB --> PublishRedis["Redis publish to channel"]
+PublishRedis --> Success["Return notification object"]
+Success --> End(["Done"])
+```
+
+**Diagram sources**
+- [notify.ts:16-24](file://lib/notify.ts#L16-L24)
+
+**Section sources**
+- [notify.ts:1-25](file://lib/notify.ts#L1-L25)
 
 ### Project Alias Feature
 - Purpose: Allows users to customize project display names while maintaining the underlying GitLab project identifier.
@@ -696,6 +788,7 @@ Seed-->>Seed : "Log completion"
   - zod for request validation
   - dayjs for date parsing and manipulation
   - redis for real-time notifications
+  - **Updated**: ioredis for Redis pub/sub integration
 - **Updated**: Social interaction features add new dependencies in comments, likes, and notifications APIs.
 - **New**: Redis pub/sub integration for real-time notification delivery.
 
@@ -731,6 +824,9 @@ Redis["redis"] --> APINotificationStream
 Redis --> APINotifications
 NotifyLib["lib/notify.ts"] --> APIComments
 NotifyLib --> APILikes
+IORedis["ioredis"] --> APINotificationStream
+IORedis --> APINotifications
+IORedis --> APINotificationStream
 ```
 
 **Diagram sources**
@@ -747,6 +843,7 @@ NotifyLib --> APILikes
 - [route.ts:1-46](file://app/api/notifications/route.ts#L1-L46)
 - [route.ts:1-65](file://app/api/notifications/stream/route.ts#L1-L65)
 - [notify.ts:1-25](file://lib/notify.ts#L1-L25)
+- [redis.ts:1-17](file://lib/redis.ts#L1-L17)
 
 **Section sources**
 - [prisma.ts:1-14](file://lib/prisma.ts#L1-L14)
@@ -762,6 +859,7 @@ NotifyLib --> APILikes
 - [route.ts:1-46](file://app/api/notifications/route.ts#L1-L46)
 - [route.ts:1-65](file://app/api/notifications/stream/route.ts#L1-L65)
 - [notify.ts:1-25](file://lib/notify.ts#L1-L25)
+- [redis.ts:1-17](file://lib/redis.ts#L1-L17)
 
 ## Performance Considerations
 - Indexes and uniqueness:
@@ -779,6 +877,7 @@ NotifyLib --> APILikes
   - Use selective field projections to reduce payload sizes.
   - **Updated**: Handle nullable alias fields safely in queries.
   - **New**: Use batch operations for notification marking (updateMany for efficiency).
+  - **New**: Implement connection pooling for Redis pub/sub operations.
 - Data types:
   - Use DATE for report dates to minimize storage overhead.
   - Store raw commits as JSON for flexibility; consider normalization if growth demands.
@@ -789,11 +888,19 @@ NotifyLib --> APILikes
   - **New**: Cascade deletes on Comment, Like, and Notification ensure data integrity.
 - Logging:
   - Prisma client logs configured to error/warn in development and error only in production.
+  - **New**: Redis connection logging for debugging pub/sub issues.
 - **New**: Social features performance considerations:
   - Minimal storage overhead for comments (max 2000 chars)
   - Efficient duplicate prevention via composite unique constraint
   - Lightweight notification system with Redis pub/sub
   - SSE connections are lightweight and automatically cleaned up
+  - Publisher singleton reduces Redis connection overhead
+  - Per-connection subscriber instances prevent blocking operations
+- **New**: Redis pub/sub performance optimizations:
+  - Connection reuse through singleton pattern
+  - Automatic cleanup on stream termination
+  - Heartbeat mechanism prevents connection timeouts
+  - JSON serialization minimizes message size
 
 ## Troubleshooting Guide
 - Common errors and causes:
@@ -805,6 +912,8 @@ NotifyLib --> APILikes
   - **New**: Comment validation errors when content is empty or exceeds 2000 characters.
   - **New**: Like toggle errors when report does not exist.
   - **New**: Notification access errors when user tries to mark others' notifications.
+  - **New**: Redis connection errors during notification publishing.
+  - **New**: SSE connection failures in notification streaming.
 - Validation rules:
   - Username length: 2–50 characters
   - Password length: 6–200 characters
@@ -814,6 +923,7 @@ NotifyLib --> APILikes
   - **New**: Comment content length: 1–2000 characters (max 2000)
   - **New**: Like operations require valid reportId
   - **New**: Notification marking requires valid notification IDs or all flag
+  - **New**: Redis URL configuration for pub/sub connectivity
 - Operational checks:
   - Ensure DATABASE_URL environment variable is set.
   - Verify Prisma client initialization and connection.
@@ -821,11 +931,16 @@ NotifyLib --> APILikes
   - **Updated**: Verify project alias migration has been applied.
   - **New**: Verify social interaction migrations (comments, likes, notifications) have been applied.
   - **New**: Ensure Redis is running for real-time notifications.
+  - **New**: Test Redis connectivity for notification publishing.
+  - **New**: Verify SSE connection establishment and heartbeat functionality.
 - **New**: Social features troubleshooting:
   - Check Redis connectivity for notification streaming
   - Verify SSE connections are properly established
   - Monitor Redis pub/sub channels for notification delivery
   - Check notification counts for proper unread tracking
+  - Debug Redis channel subscription issues
+  - Monitor connection pool exhaustion
+  - Verify JSON message format consistency
 
 **Section sources**
 - [route.ts:24-56](file://app/api/admin/users/route.ts#L24-L56)
@@ -838,7 +953,7 @@ NotifyLib --> APILikes
 - [prisma.ts:1-14](file://lib/prisma.ts#L1-L14)
 
 ## Conclusion
-Pingyun Report's database design emphasizes clear entity relationships, strong referential integrity, and practical indexes for common access patterns. The schema now includes comprehensive social interaction features with Comment, Like, and Notification models that provide rich user engagement capabilities. The architecture supports real-time notifications via Redis pub/sub and Server-Sent Events, enabling instant delivery of social updates. The Prisma schema defines robust constraints and cascading behavior, while seed scripts bootstrap essential data. APIs enforce validation and provide efficient query paths for all entities. Deployment integrates Prisma migrations to keep the schema current across environments, including the new social features and project alias functionality.
+Pingyun Report's database design emphasizes clear entity relationships, strong referential integrity, and practical indexes for common access patterns. The schema now includes comprehensive social interaction features with Comment, Like, and Notification models that provide rich user engagement capabilities. The architecture supports real-time notifications via Redis pub/sub and Server-Sent Events, enabling instant delivery of social updates. The Prisma schema defines robust constraints and cascading behavior, while seed scripts bootstrap essential data. APIs enforce validation and provide efficient query paths for all entities. Deployment integrates Prisma migrations to keep the schema current across environments, including the new social features and project alias functionality. The enhanced notification streaming system provides scalable real-time communication with efficient Redis pub/sub integration and graceful connection management.
 
 ## Appendices
 
@@ -927,6 +1042,7 @@ Pingyun Report's database design emphasizes clear entity relationships, strong r
   - Database: Flexible type system with Redis pub/sub integration
   - API: Real-time delivery via SSE with heartbeat and automatic cleanup
   - Performance: Efficient indexing and batch operations for marking as read
+  - Redis integration: Publisher-subscriber pattern for scalable delivery
 - Backward compatibility: All new features integrate seamlessly with existing data
 - Performance: Minimal storage overhead with efficient indexing and caching
 
@@ -937,6 +1053,34 @@ Pingyun Report's database design emphasizes clear entity relationships, strong r
 - [route.ts:23-26](file://app/api/notifications/route.ts#L23-L26)
 - [route.ts:7-65](file://app/api/notifications/stream/route.ts#L7-L65)
 - [notify.ts:16-24](file://lib/notify.ts#L16-L24)
+- [redis.ts:1-17](file://lib/redis.ts#L1-L17)
+
+### Notification Streaming Implementation Details
+- SSE Architecture:
+  - Persistent HTTP connections for real-time updates
+  - Heartbeat mechanism to maintain connection health
+  - Automatic cleanup on client disconnect
+  - Unread count calculation for UI synchronization
+- Redis Integration:
+  - Channel-per-user architecture for isolation
+  - Publisher-subscriber pattern for scalable delivery
+  - Connection pooling for optimal performance
+  - JSON message format for structured notifications
+- Performance Optimizations:
+  - Singleton publisher reduces connection overhead
+  - Per-connection subscribers prevent blocking
+  - Automatic cleanup prevents memory leaks
+  - Graceful degradation for connection failures
+- Error Handling:
+  - Redis publish failures are logged and ignored
+  - Connection errors are handled gracefully
+  - Stream termination cleans up resources
+  - Heartbeat maintains connection liveness
+
+**Section sources**
+- [route.ts:7-65](file://app/api/notifications/stream/route.ts#L7-L65)
+- [notify.ts:16-24](file://lib/notify.ts#L16-L24)
+- [redis.ts:1-17](file://lib/redis.ts#L1-L17)
 
 ### Project Alias Implementation Details
 - Database schema: VARCHAR(191) NULL column in Project table

@@ -19,18 +19,23 @@
 - [history-view.tsx](file://components/history-view.tsx)
 - [use-notifications.ts](file://lib/hooks/use-notifications.ts)
 - [notify.ts](file://lib/notify.ts)
+- [redis.ts](file://lib/redis.ts)
+- [notifications/route.ts](file://app/api/notifications/route.ts)
+- [notifications/stream/route.ts](file://app/api/notifications/stream/route.ts)
+- [comments/route.ts](file://app/api/comments/route.ts)
+- [likes/route.ts](file://app/api/likes/route.ts)
 - [globals.css](file://app/globals.css)
 - [tailwind.config.ts](file://tailwind.config.ts)
 </cite>
 
 ## Update Summary
 **Changes Made**
-- Added comprehensive documentation for the new NotificationBell component and its real-time notification system
-- Updated navigation component documentation to reflect the inclusion of the notification bell alongside theme toggle
-- Enhanced branding documentation to reflect the transition from '极报' to 'GitDaily' throughout the application
-- Added NotificationBell component implementation details with real-time SSE integration
-- Updated styling and theming section to cover the notification bell's visual design and interaction patterns
-- Added notification system architecture documentation including server-sent events and Redis pub/sub
+- Updated notification system architecture documentation to reflect the new Redis pub/sub with SSE implementation
+- Enhanced real-time notification system documentation with detailed SSE connection management and Redis integration
+- Updated performance considerations section to address the benefits of the new real-time architecture
+- Added comprehensive documentation for the notification publishing and subscription mechanisms
+- Updated troubleshooting guide to include Redis and SSE-specific issues
+- Enhanced notification system architecture diagrams to show the complete real-time flow
 
 ## Table of Contents
 1. [Introduction](#introduction)
@@ -56,7 +61,7 @@ This document explains the navigation and UI element components of the applicati
 - Styling approaches using Tailwind CSS classes, responsive breakpoints, and dark mode considerations
 - Component reusability patterns, prop interfaces, and integration with the authentication system
 - Examples of UI customization and theming approaches
-- Comprehensive notification system architecture with real-time updates
+- Comprehensive notification system architecture with real-time updates using Redis pub/sub and SSE
 
 ## Project Structure
 The application follows a Next.js App Router structure with a shared layout and per-page routes. Navigation is centralized in a reusable component with integrated theme switching, notification bell, and injected into pages after authentication checks. UI elements are implemented as client components with consistent styling via Tailwind CSS and CSS variables.
@@ -71,10 +76,12 @@ subgraph "Theme System"
 TP["ThemeProvider<br/>next-themes"]
 TT["ThemeToggle<br/>components/theme-toggle.tsx"]
 end
-subgraph "Notification System"
+subgraph "Real-time Notification System"
 NB["NotificationBell<br/>components/notification-bell.tsx"]
 UN["useNotifications Hook<br/>lib/hooks/use-notifications.ts"]
 NP["Notification Publisher<br/>lib/notify.ts"]
+RS["Redis Subscriber<br/>lib/redis.ts"]
+NS["Notification Stream<br/>app/api/notifications/stream/route.ts"]
 end
 subgraph "Pages"
 H["Home Page<br/>app/page.tsx"]
@@ -119,6 +126,8 @@ AT --> SESS
 SESS --> AO
 NB --> UN
 UN --> NP
+NP --> RS
+NS --> RS
 ```
 
 **Diagram sources**
@@ -134,6 +143,8 @@ UN --> NP
 - [session.ts:12-37](file://lib/session.ts#L12-L37)
 - [use-notifications.ts:15-88](file://lib/hooks/use-notifications.ts#L15-L88)
 - [notify.ts:16-24](file://lib/notify.ts#L16-L24)
+- [redis.ts:1-17](file://lib/redis.ts#L1-L17)
+- [notifications/stream/route.ts:1-65](file://app/api/notifications/stream/route.ts#L1-L65)
 
 **Section sources**
 - [layout.tsx:17-35](file://app/layout.tsx#L17-L35)
@@ -507,20 +518,24 @@ SF-->>Page : Render updated state
 **Section sources**
 - [settings-form.tsx:33-368](file://components/settings-form.tsx#L33-L368)
 
-### Notification System Architecture
+### Real-time Notification System Architecture
+**Updated** The notification system now uses Redis pub/sub with SSE instead of polling, providing instant real-time updates across multiple instances.
+
 - Real-time communication
   - Server-sent events (SSE) using EventSource API for bidirectional real-time updates.
   - Redis pub/sub for scalable message distribution across multiple instances.
-  - Automatic reconnection on connection failures.
+  - Automatic reconnection on connection failures with heartbeat mechanism.
 - Data flow
   - Notifications created via createNotification function with database persistence.
-  - Redis publisher broadcasts notifications to subscribed clients.
+  - Redis publisher broadcasts notifications to subscribed clients using user-specific channels.
   - useNotifications hook manages local state and SSE connection lifecycle.
+  - Notification stream endpoint handles SSE connections with proper cleanup.
 - User experience
   - Unread count badge on notification bell icon.
   - Latest notifications appear at the top of the dropdown list.
   - Automatic pagination to limit displayed notifications to 30 latest items.
   - Timestamps formatted in human-readable Chinese ("刚刚", "分钟前", "小时前", "天前").
+  - Real-time updates without manual refresh or polling overhead.
 
 ```mermaid
 sequenceDiagram
@@ -528,7 +543,8 @@ participant User as "User"
 participant NotificationBell as "NotificationBell"
 participant useNotifications as "useNotifications Hook"
 participant SSE as "Server-Sent Events"
-participant Redis as "Redis Pub/Sub"
+participant RedisPub as "Redis Publisher"
+participant RedisSub as "Redis Subscriber"
 participant Database as "Prisma DB"
 User->>NotificationBell : Click bell icon
 NotificationBell->>useNotifications : Fetch initial notifications
@@ -542,17 +558,42 @@ useNotifications->>Database : PATCH /api/notifications
 useNotifications->>SSE : Broadcast read status
 SSE->>useNotifications : Update unread count
 useNotifications->>NotificationBell : Update UI state
+Note over RedisPub,RedisSub : Real-time broadcast flow
+RedisPub->>RedisSub : Publish notification to user channel
+RedisSub->>SSE : Forward to connected clients
+SSE->>useNotifications : Update client state
+useNotifications->>NotificationBell : Update UI
 ```
 
 **Diagram sources**
 - [notification-bell.tsx:18-132](file://components/notification-bell.tsx#L18-L132)
 - [use-notifications.ts:15-88](file://lib/hooks/use-notifications.ts#L15-L88)
 - [notify.ts:16-24](file://lib/notify.ts#L16-L24)
+- [redis.ts:1-17](file://lib/redis.ts#L1-L17)
+- [notifications/stream/route.ts:1-65](file://app/api/notifications/stream/route.ts#L1-L65)
+
+- Redis pub/sub implementation
+  - Single publisher instance for PUBLISH commands using singleton pattern.
+  - Separate subscriber instances created per SSE connection due to Redis limitations.
+  - User-specific channels using pattern `notifications:{userId}` for isolation.
+  - Automatic cleanup of subscriptions on client disconnect.
+- SSE connection management
+  - Heartbeat mechanism to establish and maintain connections.
+  - Automatic reconnection on network failures.
+  - Proper cleanup of EventSource instances on component unmount.
+- Performance optimizations
+  - Connection pooling with Redis client reuse.
+  - Efficient notification deduplication and pagination.
+  - Minimal payload size with JSON-encoded notifications.
+  - Scalable architecture supporting multiple concurrent users.
 
 **Section sources**
 - [notification-bell.tsx:18-132](file://components/notification-bell.tsx#L18-L132)
 - [use-notifications.ts:15-88](file://lib/hooks/use-notifications.ts#L15-L88)
 - [notify.ts:16-24](file://lib/notify.ts#L16-L24)
+- [redis.ts:1-17](file://lib/redis.ts#L1-L17)
+- [notifications/stream/route.ts:1-65](file://app/api/notifications/stream/route.ts#L1-L65)
+- [notifications/route.ts:1-46](file://app/api/notifications/route.ts#L1-L46)
 
 ### Conceptual Overview
 - Authentication-aware navigation
@@ -595,11 +636,12 @@ UI --> FEEDBACK["Toast Feedback<br/>react-hot-toast"]
   - ThemeProvider from next-themes manages theme state and persistence.
   - ThemeToggle component provides three-state theme cycling with SSR safety.
   - CSS variables in globals.css define theme-specific color values.
-- Notification system
+- Real-time notification system
   - NotificationBell component depends on useNotifications hook for state management.
   - useNotifications hook uses EventSource for SSE connections and Redis for pub/sub.
   - Redis publisher and subscriber handle real-time communication between instances.
   - Prisma ORM manages notification persistence in the database.
+  - Notification creation triggers Redis publish to user-specific channels.
 - UI components
   - Client components depend on APIs for data and state; they render UI patterns consistently.
   - Components like ReportEditor and HistoryView integrate theme awareness for editor appearance.
@@ -638,6 +680,7 @@ NOTIFCOMP --> CSSVARS
 - [globals.css:5-45](file://app/globals.css#L5-L45)
 - [use-notifications.ts:15-88](file://lib/hooks/use-notifications.ts#L15-L88)
 - [notify.ts:16-24](file://lib/notify.ts#L16-L24)
+- [redis.ts:1-17](file://lib/redis.ts#L1-L17)
 
 **Section sources**
 - [auth.ts:30-77](file://lib/auth.ts#L30-L77)
@@ -651,6 +694,7 @@ NOTIFCOMP --> CSSVARS
 - [globals.css:5-45](file://app/globals.css#L5-L45)
 - [use-notifications.ts:15-88](file://lib/hooks/use-notifications.ts#L15-L88)
 - [notify.ts:16-24](file://lib/notify.ts#L16-L24)
+- [redis.ts:1-17](file://lib/redis.ts#L1-L17)
 
 ## Performance Considerations
 - Client component hydration
@@ -669,9 +713,15 @@ NOTIFCOMP --> CSSVARS
   - ThemeToggle uses next-themes with disableTransitionOnChange to prevent visual flicker during theme changes.
   - CSS variables provide efficient theme switching without expensive DOM reflows.
 - Real-time notifications
-  - SSE connections are automatically managed with reconnection logic.
-  - Redis pub/sub provides scalable real-time communication across multiple instances.
+  - SSE connections are automatically managed with reconnection logic and heartbeat mechanism.
+  - Redis pub/sub provides scalable real-time communication across multiple instances with connection pooling.
   - Notification system implements rate limiting and pagination to prevent resource exhaustion.
+  - Single publisher instance reduces Redis connection overhead while allowing multiple subscribers.
+  - User-specific channels ensure efficient message routing without broadcasting to all users.
+- Memory management
+  - EventSource instances are properly cleaned up on component unmount.
+  - Redis subscriber instances are disconnected when clients close the connection.
+  - Notification arrays are capped at 30 items to prevent memory leaks.
 
 [No sources needed since this section provides general guidance]
 
@@ -752,10 +802,24 @@ NOTIFCOMP --> CSSVARS
   - Verify server-sent events endpoint is accessible and returning JSON data.
   - Check browser console for EventSource connection errors.
   - Ensure notification creation API is functioning correctly.
+  - Verify Redis server is running and accessible via REDIS_URL environment variable.
+  - Check that user-specific channels are properly formatted as `notifications:{userId}`.
 - Notification unread count not updating
   - Verify markAsRead and markAllRead functions are properly implemented.
   - Check SSE event handling for unread count updates.
   - Confirm database updates are occurring for read status changes.
+- Redis connection issues
+  - Verify REDIS_URL environment variable is correctly set.
+  - Check Redis server availability and network connectivity.
+  - Monitor Redis connection pool usage and ensure proper cleanup.
+- SSE connection problems
+  - Check network connectivity and firewall settings.
+  - Verify CORS headers and Content-Type: text/event-stream.
+  - Monitor EventSource connection status and automatic reconnection behavior.
+- Performance issues
+  - Monitor Redis pub/sub throughput and connection counts.
+  - Check notification volume and ensure proper pagination limits.
+  - Verify client-side memory usage and EventSource cleanup.
 
 **Section sources**
 - [nav.tsx:14-175](file://components/nav.tsx#L14-L175)
@@ -768,6 +832,12 @@ NOTIFCOMP --> CSSVARS
 - [providers.tsx:8-16](file://app/providers.tsx#L8-L16)
 - [use-notifications.ts:15-88](file://lib/hooks/use-notifications.ts#L15-L88)
 - [notify.ts:16-24](file://lib/notify.ts#L16-L24)
+- [redis.ts:1-17](file://lib/redis.ts#L1-L17)
+- [notifications/stream/route.ts:1-65](file://app/api/notifications/stream/route.ts#L1-L65)
 
 ## Conclusion
-The navigation and UI system is built around a reusable Nav component with integrated ThemeToggle, NotificationBell, and a consistent layout shell with theme provider. The three-state theme switching (light/dark/system) provides seamless user experience with automated theme management. The new NotificationBell component enhances the application with real-time notification capabilities using server-sent events and Redis pub/sub integration. Authentication-aware routing and active-state management are integrated cleanly with Tailwind CSS theming and responsive design. The approach emphasizes reusability, clear feedback, and maintainable styling through CSS variables and utility-first classes, with comprehensive accessibility support for all interactive elements. The branding transition to 'GitDaily' is consistently reflected throughout the application, from navigation headers to login pages and footer branding.
+The navigation and UI system is built around a reusable Nav component with integrated ThemeToggle, NotificationBell, and a consistent layout shell with theme provider. The three-state theme switching (light/dark/system) provides seamless user experience with automated theme management. The new NotificationBell component enhances the application with real-time notification capabilities using server-sent events and Redis pub/sub integration, replacing the previous polling-based approach. 
+
+The notification system now provides instant updates across multiple instances with scalable architecture supporting horizontal scaling. Authentication-aware routing and active-state management are integrated cleanly with Tailwind CSS theming and responsive design. The approach emphasizes reusability, clear feedback, and maintainable styling through CSS variables and utility-first classes, with comprehensive accessibility support for all interactive elements. The branding transition to 'GitDaily' is consistently reflected throughout the application, from navigation headers to login pages and footer branding.
+
+The real-time notification system represents a significant architectural improvement, providing better user experience, reduced server load, and scalable performance characteristics suitable for production deployment.
