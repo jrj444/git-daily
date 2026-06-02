@@ -150,7 +150,7 @@ export function StatsContent({ data, compact }: { data: StatsData; compact?: boo
                   </span>
                 </button>
                 {expandedProjects.has(proj.name) && (
-                  <div className="px-3 pb-2 space-y-1">
+                  <div className="px-3 py-2 space-y-1">
                     {TYPE_KEYS.map((key) => {
                       const count = proj.breakdown[key] || 0;
                       if (count === 0) return null;

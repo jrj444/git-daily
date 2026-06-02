@@ -14,18 +14,20 @@ enum Role {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  username      String    @unique
-  passwordHash  String
-  displayName   String
-  role          Role      @default(MEMBER)
-  gitlabBaseUrl String?
-  gitlabToken   String?   @db.Text // AES-256-GCM encrypted, base64
-  gitlabUserId  Int?
-  gitlabEmail   String?
-  noiseRegex    String?   @db.Text
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                        String    @id @default(cuid())
+  username                  String    @unique
+  passwordHash              String?
+  displayName               String
+  role                      Role      @default(MEMBER)
+  gitlabBaseUrl             String?
+  gitlabToken               String?   @db.Text // AES-256-GCM encrypted, base64
+  gitlabRefreshToken        String?   @db.Text // AES-256-GCM encrypted OAuth refresh_token
+  gitlabAccessTokenExpiresAt DateTime?
+  gitlabUserId              Int?
+  gitlabEmail               String?
+  noiseRegex                String?   @db.Text
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
 
   projects      Project[]
   reports       Report[]

@@ -1,19 +1,27 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, useEffect, Suspense } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const callbackUrl = params.get("callbackUrl") || "/";
+  const error = params.get("error");
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [gitlabLoading, setGitlabLoading] = useState(false);
+
+  useEffect(() => {
+    if (error) {
+      toast.error("GitLab 登录失败，请重试");
+    }
+  }, [error]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -32,9 +40,13 @@ export default function LoginPage() {
     router.refresh();
   }
 
+  async function onGitLabSignIn() {
+    setGitlabLoading(true);
+    await signIn("gitlab", { callbackUrl });
+  }
+
   return (
     <div className="min-h-screen relative grid place-items-center px-4 overflow-hidden bg-background">
-      {/* Decorative gradients */}
       <div
         aria-hidden
         className="pointer-events-none absolute -top-40 -right-40 w-[480px] h-[480px] rounded-full bg-primary/10 blur-3xl"
@@ -45,7 +57,6 @@ export default function LoginPage() {
       />
 
       <div className="relative w-full max-w-sm">
-        {/* Branding */}
         <div className="flex flex-col items-center mb-6">
           <img src="/images/logo.png" alt="GitDaily" className="w-20 h-20 mb-3 rounded-xl shadow-lg shadow-primary/20" />
           <h1 className="text-2xl font-semibold tracking-tight">GitDaily</h1>
@@ -54,7 +65,6 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Form card */}
         <form
           onSubmit={onSubmit}
           className="bg-card border border-border rounded-xl p-7 shadow-lg shadow-primary/5 space-y-4"
@@ -154,10 +164,46 @@ export default function LoginPage() {
           </button>
         </form>
 
+        <div className="relative my-4">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-border" />
+          </div>
+          <div className="relative flex justify-center text-xs">
+            <span className="bg-background px-3 text-muted-foreground">
+              或
+            </span>
+          </div>
+        </div>
+
+        <button
+          onClick={onGitLabSignIn}
+          disabled={gitlabLoading}
+          className="w-full h-10 border border-border rounded-md text-sm font-medium flex items-center justify-center gap-2 hover:bg-muted transition disabled:opacity-60"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+          >
+            <path d="M23.955 13.587l-1.342-4.135-2.664-8.189a.455.455 0 00-.867-.012L16.427 9.45H7.573L4.918 1.263a.455.455 0 00-.867.012L1.387 9.45.045 13.587a.924.924 0 00.331 1.024L12 23.054l11.624-8.443a.924.924 0 00.331-1.024" />
+          </svg>
+          {gitlabLoading ? "跳转中…" : "通过 GitLab 登录"}
+        </button>
+
         <p className="text-xs text-muted-foreground text-center mt-6">
           © 2026 ~ Present GitDaily
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-background" />}>
+      <LoginForm />
+    </Suspense>
   );
 }

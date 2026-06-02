@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { decrypt } from "@/lib/crypto";
+import { resolveGitLabToken } from "@/lib/gitlab-token";
 import { listCommits } from "@/lib/gitlab";
 import { filterCommits, parseConventional } from "@/lib/report";
 
@@ -87,8 +87,9 @@ export async function computeUserStats(
     where: { userId: user.id, enabled: true },
   });
 
-  const token = decrypt(user.gitlabToken);
-  const opts = { baseUrl: user.gitlabBaseUrl, token };
+  const token = await resolveGitLabToken(user.id);
+  if (!token) return null;
+  const opts = { baseUrl: user.gitlabBaseUrl!, token };
 
   const totalBreakdown = emptyBreakdown();
   let total = 0;

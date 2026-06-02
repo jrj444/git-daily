@@ -12,6 +12,9 @@ type Me = {
   noiseRegex: string | null;
   hasToken: boolean;
   tokenMask: string;
+  isOAuth: boolean;
+  hasPassword: boolean;
+  tokenExpiresAt: string | null;
 };
 
 type Project = {
@@ -32,6 +35,9 @@ export function SettingsForm() {
   const [templateCount, setTemplateCount] = useState(0);
   const [savingGl, setSavingGl] = useState(false);
   const [savingMe, setSavingMe] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [savingPwd, setSavingPwd] = useState(false);
 
   async function reload() {
     const [meRes, projRes, tplRes] = await Promise.all([
@@ -103,28 +109,100 @@ export function SettingsForm() {
     }
   }
 
+  async function setPassword() {
+    if (!newPassword) {
+      toast.error("请输入密码");
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast.error("密码至少 6 位");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("两次密码不一致");
+      return;
+    }
+    setSavingPwd(true);
+    try {
+      const res = await fetch("/api/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: newPassword }),
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        toast.error(d?.error || "设置失败");
+        return;
+      }
+      toast.success(me?.hasPassword ? "密码已修改" : "密码已设置");
+      setNewPassword("");
+      setConfirmPassword("");
+      await reload();
+    } finally {
+      setSavingPwd(false);
+    }
+  }
+
+  function formatExpiry(iso: string | null | undefined): string {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    return d.toLocaleString("zh-CN", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  const isOAuth = me?.isOAuth;
+
   return (
     <div className="space-y-6">
       <section className="bg-card border border-border rounded-lg p-4 space-y-3">
         <h2 className="font-medium">GitLab 连接</h2>
-        <div className="grid sm:grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs text-muted-foreground mb-1">
-              GitLab 地址（如 https://gitlab.company.com）
-            </label>
-            <input
-              className="w-full border border-border rounded px-2 py-1.5 text-sm"
-              value={baseUrl}
-              onChange={(e) => setBaseUrl(e.target.value)}
-              placeholder="https://gitlab.example.com"
-            />
+        {isOAuth && (
+          <div className="space-y-2 mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">
+                已通过 GitLab 账号登录连接
+              </span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                GitLab OAuth
+              </span>
+            </div>
+            <div className="text-xs text-muted-foreground space-y-1">
+              <p>GitLab 地址：{me?.gitlabBaseUrl || "—"}</p>
+              <p>GitLab 邮箱：{me?.gitlabEmail || "—"}</p>
+              <p>Token 有效期至：{formatExpiry(me?.tokenExpiresAt)}（自动续期）</p>
+            </div>
           </div>
-          <div>
-            <label className="block text-xs text-muted-foreground mb-1 text-nowrap">
-              Personal Access Token (read_api / read_repository)
+        )}
+        <p className="text-xs text-muted-foreground mb-2">
+          {isOAuth
+            ? "可配置个人 Token 覆盖 OAuth Token，获取更多项目权限。"
+            : "配置 Personal Access Token 以访问 GitLab。"}
+        </p>
+        <div className="grid sm:grid-cols-2 gap-3">
+          {!isOAuth && (
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">
+                GitLab 地址（如 https://gitlab.company.com）
+              </label>
+              <input
+                className="w-full border border-border rounded px-2 py-1.5 text-sm"
+                value={baseUrl}
+                onChange={(e) => setBaseUrl(e.target.value)}
+                placeholder="https://gitlab.example.com"
+              />
+            </div>
+          )}
+          <div className={isOAuth ? "sm:col-span-2" : ""}>
+            <label className="block text-xs text-muted-foreground mb-1 break-all sm:break-normal">
+              Personal Access Token
               {me?.hasToken && (
-                <span className="ml-2 text-muted-foreground/70">
-                  当前：{me.tokenMask}
+                <span className="ml-1 text-muted-foreground/70">
+                  (当前 {me.tokenMask})
                 </span>
               )}
             </label>
@@ -137,10 +215,10 @@ export function SettingsForm() {
             />
           </div>
         </div>
-        <div className="text-xs text-muted-foreground">
+        <div className="text-xs text-muted-foreground mt-2">
           GitLab 账号邮箱（仅用于识别）：{me?.gitlabEmail || "（未识别，请保存后重试）"}
         </div>
-        <div>
+        <div className="mt-2">
           <button
             onClick={saveGitlab}
             disabled={savingGl}
@@ -150,6 +228,50 @@ export function SettingsForm() {
           </button>
         </div>
       </section>
+
+      <section className="bg-card border border-border rounded-lg p-4 space-y-3">
+          <h2 className="font-medium">
+            {me?.hasPassword ? "修改密码" : "设置登录密码"}
+          </h2>
+          {!me?.hasPassword && (
+            <p className="text-xs text-muted-foreground">
+              设置后可使用用户名+密码登录，无需每次跳转 GitLab。
+            </p>
+          )}
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">
+                新密码（至少 6 位）
+              </label>
+              <input
+                className="w-full border border-border rounded px-2 py-1.5 text-sm"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="请输入密码"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">
+                确认密码
+              </label>
+              <input
+                className="w-full border border-border rounded px-2 py-1.5 text-sm"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="请再次输入密码"
+              />
+            </div>
+          </div>
+          <button
+            onClick={setPassword}
+            disabled={savingPwd}
+            className="px-3 py-1.5 text-sm rounded bg-primary text-primary-foreground disabled:opacity-60"
+          >
+            {savingPwd ? "保存中…" : (me?.hasPassword ? "修改密码" : "设置密码")}
+          </button>
+        </section>
 
       <section className="bg-card border border-border rounded-lg p-4 space-y-3">
         <h2 className="font-medium">过滤设置</h2>

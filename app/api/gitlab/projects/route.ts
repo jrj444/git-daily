@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { decrypt } from "@/lib/crypto";
+import { resolveGitLabToken } from "@/lib/gitlab-token";
 import { withErrors, requireUser } from "@/lib/session";
 import { getProject, listProjects } from "@/lib/gitlab";
 
@@ -63,7 +63,14 @@ export const POST = withErrors(async (req: Request) => {
       { status: 400 }
     );
   }
-  const opts = { baseUrl: u.gitlabBaseUrl, token: decrypt(u.gitlabToken) };
+  const token = await resolveGitLabToken(u.id);
+  if (!token) {
+    return NextResponse.json(
+      { error: "请先在『设置』中保存 GitLab 地址与 Token" },
+      { status: 400 }
+    );
+  }
+  const opts = { baseUrl: u.gitlabBaseUrl!, token };
 
   if (body.refreshAll) {
     try {

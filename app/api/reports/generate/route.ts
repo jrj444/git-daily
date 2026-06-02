@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import dayjs from "dayjs";
 import { prisma } from "@/lib/prisma";
-import { decrypt } from "@/lib/crypto";
+import { resolveGitLabToken } from "@/lib/gitlab-token";
 import { withErrors, requireUser } from "@/lib/session";
 import { listCommits } from "@/lib/gitlab";
 import {
@@ -51,8 +51,14 @@ export const GET = withErrors(async (req: Request) => {
     },
   });
 
-  const token = decrypt(user.gitlabToken);
-  const opts = { baseUrl: user.gitlabBaseUrl, token };
+  const token = await resolveGitLabToken(user.id);
+  if (!token) {
+    return NextResponse.json(
+      { error: "请先在『设置』中配置 GitLab 地址与 Token" },
+      { status: 400 }
+    );
+  }
+  const opts = { baseUrl: user.gitlabBaseUrl!, token };
 
   const groups = await Promise.all(
     projects.map(async (p) => {

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { encrypt, decrypt } from "@/lib/crypto";
+import { encrypt } from "@/lib/crypto";
+import { resolveGitLabToken } from "@/lib/gitlab-token";
 import { withErrors, requireUser } from "@/lib/session";
 import { validateToken, listProjects } from "@/lib/gitlab";
 
@@ -14,16 +15,15 @@ export const POST = withErrors(async (req: Request) => {
   const user = await requireUser();
   const body = Body.parse(await req.json());
 
-  let token = body.token;
+  let token: string | null | undefined = body.token;
   if (!token) {
-    const u = await prisma.user.findUnique({ where: { id: user.id } });
-    if (!u?.gitlabToken) {
+    token = await resolveGitLabToken(user.id);
+    if (!token) {
       return NextResponse.json(
         { error: "请先填写 token" },
         { status: 400 }
       );
     }
-    token = decrypt(u.gitlabToken);
   }
 
   const me = await validateToken({ baseUrl: body.baseUrl, token });
