@@ -21,7 +21,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh-CN" suppressHydrationWarning>
-      <body>
+      <body className="min-h-screen relative antialiased flex flex-col">
+        {/* Subtle grid pattern background for developer tool aesthetics */}
+        <div
+          className="fixed inset-0 pointer-events-none z-[-1] bg-grid-pattern opacity-70 dark:opacity-50"
+          aria-hidden="true"
+        />
         <Providers>{children}</Providers>
         <Toaster
           position="top-center"

@@ -1,7 +1,18 @@
 import { describe, it, expect } from "vitest";
-import { parseConventional, filterCommits, dedupe } from "../report";
+import {
+  parseConventional,
+  filterCommits,
+  dedupe,
+  buildContext,
+  renderTemplate,
+  DEFAULT_TEMPLATE_BODY,
+  DEFAULT_PROMPT,
+  formatCommitsForPrompt,
+  buildPromptMessages,
+  generateEmptyReport,
+} from "../report";
 import type { GitLabCommit } from "../gitlab";
-import type { CleanCommit } from "../report";
+import type { CleanCommit, GroupedSource } from "../report";
 
 // --- parseConventional ---
 
@@ -158,5 +169,149 @@ describe("dedupe", () => {
     ];
     const result = dedupe(commits);
     expect(result).toHaveLength(2);
+  });
+});
+
+// --- buildContext & renderTemplate ---
+
+describe("buildContext and renderTemplate", () => {
+  it("builds context with idx on projects and renders standard 4-section report", () => {
+    const groups: GroupedSource[] = [
+      {
+        project: { name_with_namespace: "平云商城", web_url: "https://gitlab.example.com/mall" },
+        commits: [
+          makeCommit({
+            id: "1",
+            title: "图标体系收敛为 common iconfont",
+            message: "feat: 图标体系收敛为 common iconfont",
+          }),
+        ],
+      },
+      {
+        project: { name_with_namespace: "党建产品", web_url: "https://gitlab.example.com/party" },
+        commits: [
+          makeCommit({
+            id: "2",
+            title: "对齐 PRD 修正原型差异",
+            message: "feat: 对齐 PRD 修正原型差异",
+          }),
+        ],
+      },
+    ];
+
+    const ctx = buildContext("2026-11-13", groups, {}, { displayName: "江锐健" });
+    expect(ctx.projects).toHaveLength(2);
+    expect(ctx.projects[0].idx).toBe(1);
+    expect(ctx.projects[0].name).toBe("平云商城");
+    expect(ctx.projects[1].idx).toBe(2);
+    expect(ctx.projects[1].name).toBe("党建产品");
+
+    const output = renderTemplate(DEFAULT_TEMPLATE_BODY, ctx);
+    expect(output).toContain("今日计划完成工作:");
+    expect(output).toContain("1. 平云商城 - 迭代优化");
+    expect(output).toContain("2. 党建产品 - 迭代优化");
+    expect(output).toContain("今日实际完成工作:");
+    expect(output).toContain("图标体系收敛为 common iconfont");
+    expect(output).toContain("对齐 PRD 修正原型差异");
+    expect(output).toContain("未完成工作及原因:\n无");
+    expect(output).toContain("明日工作计划:");
+    expect(output).toContain("1. 平云商城 - 优化迭代");
+    expect(output).toContain("2. 党建产品 - 优化迭代");
+  });
+
+  it("renders empty fallback when projects are empty", () => {
+    const ctx = buildContext("2026-11-13", [], {}, { displayName: "江锐健" });
+    const output = renderTemplate(DEFAULT_TEMPLATE_BODY, ctx);
+
+    expect(output).toContain("今日计划完成工作:\n1. 迭代优化");
+    expect(output).toContain("今日实际完成工作:\n（今日无提交记录）");
+    expect(output).toContain("未完成工作及原因:\n无");
+    expect(output).toContain("明日工作计划:\n1. 优化迭代");
+  });
+});
+
+// --- AI Prompt Formatting & Messages ---
+
+describe("AI Prompt generation helpers", () => {
+  const sampleProjects = [
+    {
+      idx: 1,
+      name: "平云商城",
+      webUrl: "https://gitlab.example.com/mall",
+      commits: [
+        makeCleanCommit({ id: "1", title: "后台列表页统一", type: "feat" }),
+        makeCleanCommit({ id: "2", title: "修复按钮重叠", type: "fix" }),
+      ],
+    },
+  ];
+
+  it("formatCommitsForPrompt formats commits cleanly by project", () => {
+    const text = formatCommitsForPrompt(
+      sampleProjects,
+      "2026-11-13",
+      { displayName: "江锐健" }
+    );
+    expect(text).toContain("日期：2026-11-13");
+    expect(text).toContain("开发者：江锐健");
+    expect(text).toContain("【平云商城】");
+    expect(text).toContain("- [feat] 后台列表页统一");
+    expect(text).toContain("- [fix] 修复按钮重叠");
+  });
+
+  it("formatCommitsForPrompt handles empty projects", () => {
+    const text = formatCommitsForPrompt([], "2026-11-13", { displayName: "江锐健" });
+    expect(text).toContain("（无代码提交）");
+  });
+
+  it("formatCommitsForPrompt handles extra non-code notes", () => {
+    const text = formatCommitsForPrompt(
+      sampleProjects,
+      "2026-11-13",
+      { displayName: "江锐健" },
+      "1. 参加电商二期需求评审会\n2. 输出接口设计文档"
+    );
+    expect(text).toContain("今日其他日常工作（会议/文档/项目管理/协同等）：");
+    expect(text).toContain("参加电商二期需求评审会");
+    expect(text).toContain("输出接口设计文档");
+  });
+
+  it("buildPromptMessages formats system and user messages", () => {
+    const ctx = {
+      date: "2026-11-13",
+      total: 2,
+      projects: sampleProjects,
+      user: { displayName: "江锐健" },
+    };
+
+    const messages = buildPromptMessages(DEFAULT_PROMPT, ctx);
+    expect(messages).toHaveLength(2);
+    expect(messages[0].role).toBe("system");
+    expect(messages[0].content).toContain("今日计划完成工作:");
+    expect(messages[1].role).toBe("user");
+    expect(messages[1].content).toContain("【平云商城】");
+  });
+
+  it("buildPromptMessages substitutes {{commits}} if present", () => {
+    const ctx = {
+      date: "2026-11-13",
+      total: 2,
+      projects: sampleProjects,
+      user: { displayName: "江锐健" },
+    };
+
+    const customPrompt = "请总结以下提交：\n{{commits}}\n输出日报。";
+    const messages = buildPromptMessages(customPrompt, ctx);
+    expect(messages).toHaveLength(1);
+    expect(messages[0].role).toBe("user");
+    expect(messages[0].content).toContain("【平云商城】");
+    expect(messages[0].content).toContain("输出日报。");
+  });
+
+  it("generateEmptyReport produces 4-section empty report", () => {
+    const rep = generateEmptyReport();
+    expect(rep).toContain("今日计划完成工作:");
+    expect(rep).toContain("今日实际完成工作:\n（今日无提交记录）");
+    expect(rep).toContain("未完成工作及原因:\n无");
+    expect(rep).toContain("明日工作计划:");
   });
 });

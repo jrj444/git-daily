@@ -2,10 +2,15 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import dayjs from "dayjs";
 import { withErrors, requireUser } from "@/lib/session";
-import { renderTemplate, type ReportContext } from "@/lib/report";
+import {
+  buildPromptMessages,
+  formatCommitsForPrompt,
+  type ReportContext,
+} from "@/lib/report";
+import { callLLM } from "@/lib/llm";
 
 const Body = z.object({
-  body: z.string().min(1, "模板内容不能为空"),
+  body: z.string().min(1, "提示词内容不能为空"),
 });
 
 export const POST = withErrors(async (req: Request) => {
@@ -16,32 +21,33 @@ export const POST = withErrors(async (req: Request) => {
   const ctx: ReportContext = {
     date,
     total: 2,
-    user: { displayName: "示例用户", email: "you@example.com" },
+    user: { displayName: "示例开发者", email: "developer@example.com" },
     projects: [
       {
-        name: "frontend/web (示例)",
-        webUrl: "https://gitlab.example.com/frontend/web",
+        idx: 1,
+        name: "平云商城",
+        webUrl: "https://gitlab.example.com/mall",
         commits: [
           {
             id: "ab12cd34ef56",
             short_id: "ab12cd34",
-            title: "登录页加上记住我",
-            message: "feat(auth): 登录页加上记住我",
-            author_email: "you@example.com",
+            title: "图标体系收敛为 common iconfont，移除 TDesign 字体",
+            message: "feat: 图标体系收敛为 common iconfont，移除 TDesign 字体",
+            author_email: "developer@example.com",
             authored_date: `${date}T09:30:00.000Z`,
-            web_url: "https://gitlab.example.com/frontend/web/-/commit/ab12cd34",
+            web_url: "https://gitlab.example.com/mall/-/commit/ab12cd34",
             type: "feat",
-            scope: "auth",
+            scope: "ui",
           },
           {
             id: "ef56gh78ij90",
             short_id: "ef56gh78",
-            title: "修复列表分页越界",
-            message: "fix(list): 修复列表分页越界",
-            author_email: "you@example.com",
+            title: "后台列表页统一为搜索卡加列表卡结构，表格补外框",
+            message: "feat: 后台列表页统一为搜索卡加列表卡结构，表格补外框",
+            author_email: "developer@example.com",
             authored_date: `${date}T15:10:00.000Z`,
-            web_url: "https://gitlab.example.com/frontend/web/-/commit/ef56gh78",
-            type: "fix",
+            web_url: "https://gitlab.example.com/mall/-/commit/ef56gh78",
+            type: "feat",
             scope: "list",
           },
         ],
@@ -50,7 +56,13 @@ export const POST = withErrors(async (req: Request) => {
   };
 
   try {
-    const content = renderTemplate(parsed.body, ctx);
+    const messages = buildPromptMessages(parsed.body, ctx);
+    let content = "";
+    try {
+      content = await callLLM(messages);
+    } catch {
+      content = `[提示词预览模式]\n\n--- 实际发送给大模型的内容 ---\n${messages.map((m) => `[${m.role}]\n${m.content}`).join("\n\n")}`;
+    }
     return NextResponse.json({ content });
   } catch (e: any) {
     return NextResponse.json(

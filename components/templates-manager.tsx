@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { cn } from "@/lib/utils";
+import { DEFAULT_PROMPT } from "@/lib/report";
 
 type Template = {
   id: string;
@@ -16,66 +17,37 @@ type Group = { title: string; items: Snippet[] };
 
 const PLACEHOLDER_GROUPS: Group[] = [
   {
-    title: "基本",
+    title: "动态变量（可选）",
     items: [
-      { token: "{{date}}", desc: "日报日期，YYYY-MM-DD" },
-      { token: "{{total}}", desc: "当日所有项目去重后的提交总数" },
-      { token: "{{user.displayName}}", desc: "当前用户显示名" },
-      { token: "{{user.email}}", desc: "当前用户邮箱（GitLab 邮箱）" },
+      {
+        token: "{{commits}}",
+        desc: "当日 Git 提交记录明细（若不写，系统会自动附加到提示词后）",
+      },
+      { token: "{{date}}", desc: "日报日期（如 2026-11-13）" },
+      { token: "{{user}}", desc: "开发者显示名称" },
+      { token: "{{total}}", desc: "当日有效提交总数" },
     ],
   },
   {
-    title: "条件分支",
+    title: "常用指令推荐（点击插入）",
     items: [
       {
-        token: "{{#if projects.length}}\n  ...\n{{else}}\n  （今日无提交记录）\n{{/if}}",
-        desc: "当存在项目时渲染主体，否则渲染兜底文案",
+        token: "输出必须严格遵循以下四段式结构，标题与格式保持一致：\n今日计划完成工作:\n今日实际完成工作:\n未完成工作及原因:\n明日工作计划:",
+        desc: "规范四段式输出结构",
       },
-    ],
-  },
-  {
-    title: "项目循环（在 {{#each projects}} 内）",
-    items: [
       {
-        token: "{{#each projects}}\n## {{name}}\n{{/each}}",
-        desc: "遍历当日有提交的项目",
+        token: "今日实际完成工作按项目分组，语言精炼专业，每个项目下列出具体要点，纯净换行，不要带“- ”或数字编号",
+        desc: "紧凑易复制文本排版",
       },
-      { token: "{{name}}", desc: "项目别名（若设置）或 GitLab 全路径" },
-      { token: "{{webUrl}}", desc: "项目主页链接" },
-    ],
-  },
-  {
-    title: "提交循环（在 {{#each commits}} 内）",
-    items: [
       {
-        token: "{{#each commits}}\n- {{title}}\n{{/each}}",
-        desc: "遍历该项目当日提交（已去重）",
+        token: "仅输出最终纯文本，禁止附带任何问候语、开场白、代码块反引号（```）或解释说明",
+        desc: "去除多余客套话与代码块",
       },
-      { token: "{{title}}", desc: "提交标题（去除 conventional 前缀后的纯文案）" },
-      { token: "{{type}}", desc: "feat/fix/chore 等（如非 conventional 则为空）" },
-      { token: "{{scope}}", desc: "scope（如 auth、list；可能为空）" },
-      { token: "{{short_id}}", desc: "提交短 SHA" },
-      { token: "{{authored_date}}", desc: "ISO 时间字符串" },
-      { token: "{{web_url}}", desc: "提交在 GitLab 上的链接" },
-      { token: "{{author_email}}", desc: "提交作者邮箱" },
-      { token: "{{message}}", desc: "完整 commit message" },
     ],
   },
 ];
 
-const DEFAULT_TEMPLATE_SNIPPET = `# {{date}} 日报
-
-{{#if projects.length}}
-{{#each projects}}
-## {{name}}
-{{#each commits}}
-- {{title}}
-{{/each}}
-
-{{/each}}
-{{else}}
-（今日无提交记录）
-{{/if}}`;
+const DEFAULT_PROMPT_SNIPPET = DEFAULT_PROMPT;
 
 const NEW_ID = "__new__";
 
@@ -130,7 +102,7 @@ export function TemplatesManager() {
   }, [dirty]);
 
   function selectTemplate(t: Template) {
-    if (dirty && !confirm("当前模板有未保存的修改，确定切换？")) return;
+    if (dirty && !confirm("当前提示词有未保存的修改，确定切换？")) return;
     setSelectedId(t.id);
     setName(t.name);
     setBody(t.body);
@@ -149,10 +121,10 @@ export function TemplatesManager() {
   }
 
   function newTemplate() {
-    if (dirty && !confirm("当前模板有未保存的修改，确定新建？")) return;
+    if (dirty && !confirm("当前提示词有未保存的修改，确定新建？")) return;
     setSelectedId(NEW_ID);
-    setName("新模板");
-    setBody(DEFAULT_TEMPLATE_SNIPPET);
+    setName("新提示词");
+    setBody(DEFAULT_PROMPT_SNIPPET);
     setIsDefault(false);
     setDirty(true);
     setPreviewContent("");
@@ -161,11 +133,11 @@ export function TemplatesManager() {
 
   async function save() {
     if (!name.trim()) {
-      toast.error("请填写模板名称");
+      toast.error("请填写提示词名称");
       return;
     }
     if (!body.trim()) {
-      toast.error("模板内容不能为空");
+      toast.error("提示词内容不能为空");
       return;
     }
     setSaving(true);
@@ -201,7 +173,7 @@ export function TemplatesManager() {
     const t = templates.find((x) => x.id === selectedId);
     if (!t) return;
     if (t.isDefault) {
-      toast.error("默认模板不能删除，请先把别的模板设为默认");
+      toast.error("默认提示词不能删除，请先把别的提示词设为默认");
       return;
     }
     if (!confirm(`删除『${t.name}』？`)) return;
@@ -218,7 +190,7 @@ export function TemplatesManager() {
 
   async function preview() {
     if (!body.trim()) {
-      toast.error("模板内容不能为空");
+      toast.error("提示词内容不能为空");
       return;
     }
     setPreviewing(true);
@@ -232,7 +204,7 @@ export function TemplatesManager() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setPreviewError(data?.error || "预览失败");
+        setPreviewError(data?.error || "预览生成失败");
         setPreviewContent("");
         return;
       }
@@ -264,8 +236,8 @@ export function TemplatesManager() {
 
   async function copyDefault() {
     try {
-      await navigator.clipboard.writeText(DEFAULT_TEMPLATE_SNIPPET);
-      toast.success("默认模板已复制");
+      await navigator.clipboard.writeText(DEFAULT_PROMPT_SNIPPET);
+      toast.success("默认提示词已复制");
     } catch {
       toast.error("复制失败");
     }
@@ -280,13 +252,13 @@ export function TemplatesManager() {
           onClick={newTemplate}
           className="w-full px-3 py-1.5 text-sm rounded bg-primary text-primary-foreground"
         >
-          + 新建模板
+          + 新建提示词
         </button>
         <div className="space-y-1 max-h-[480px] overflow-y-auto">
           {loading ? (
             <div className="text-xs text-muted-foreground py-2 text-center">加载中…</div>
           ) : templates.length === 0 ? (
-            <div className="text-xs text-muted-foreground py-2 text-center">暂无模板</div>
+            <div className="text-xs text-muted-foreground py-2 text-center">暂无提示词</div>
           ) : (
             templates.map((t) => (
               <button
@@ -320,14 +292,14 @@ export function TemplatesManager() {
       <section className="bg-card border border-border rounded-lg p-4 space-y-3">
         {!hasSelection ? (
           <div className="text-sm text-muted-foreground py-12 text-center">
-            从上方选择一个模板，或点击「新建模板」开始。
+            从左侧选择一个提示词，或点击「新建提示词」开始。
           </div>
         ) : (
           <>
             <div className="flex flex-wrap items-center gap-2">
               <input
                 className="flex-1 min-w-[160px] border border-border rounded px-2 py-1.5 text-sm"
-                placeholder="模板名称"
+                placeholder="提示词预设名称，如：标准四段式"
                 value={name}
                 onChange={(e) => {
                   setName(e.target.value);
@@ -351,7 +323,7 @@ export function TemplatesManager() {
                 disabled={previewing}
                 className="px-3 py-1.5 text-sm rounded border border-border hover:bg-muted disabled:opacity-60"
               >
-                {previewing ? "预览中…" : "预览"}
+                {previewing ? "AI 生成预览中…" : "AI 运行预览"}
               </button>
               <button
                 onClick={save}
@@ -379,7 +351,7 @@ export function TemplatesManager() {
                 setDirty(true);
               }}
               spellCheck={false}
-              placeholder="使用 Handlebars 语法编写模板…"
+              placeholder="在此编写给大模型的提示词指令（Prompt）…"
             />
 
             <div className="border-t border-border -mx-4 mt-2" />
@@ -392,7 +364,7 @@ export function TemplatesManager() {
                   tab === "reference" ? "bg-muted font-medium" : "hover:bg-muted/60"
                 )}
               >
-                占位符参考
+                提示词说明与参考
               </button>
               <button
                 onClick={() => setTab("preview")}
@@ -401,7 +373,7 @@ export function TemplatesManager() {
                   tab === "preview" ? "bg-muted font-medium" : "hover:bg-muted/60"
                 )}
               >
-                预览
+                AI 运行预览
               </button>
               {tab === "preview" && (
                 <button
@@ -409,7 +381,7 @@ export function TemplatesManager() {
                   disabled={previewing}
                   className="ml-auto text-xs px-2 py-1 rounded border border-border hover:bg-muted disabled:opacity-60"
                 >
-                  {previewing ? "渲染中…" : "重新渲染"}
+                  {previewing ? "生成中…" : "重新运行"}
                 </button>
               )}
             </div>
@@ -429,7 +401,7 @@ export function TemplatesManager() {
                         >
                           <button
                             onClick={() => insertAtCursor(it.token)}
-                            className="font-mono px-1.5 py-0.5 rounded bg-muted hover:bg-muted/80 whitespace-pre overflow-x-auto max-w-[60%]"
+                            className="font-mono px-1.5 py-0.5 rounded bg-muted hover:bg-muted/80 whitespace-pre overflow-x-auto max-w-[60%] text-left"
                             title="点击插入到光标位置"
                           >
                             {it.token}
@@ -444,14 +416,14 @@ export function TemplatesManager() {
                 ))}
                 <div>
                   <div className="text-xs font-medium text-foreground/80 mb-1">
-                    内置默认模板
+                    系统默认提示词
                   </div>
-                  <pre className="text-xs font-mono p-2 bg-muted rounded whitespace-pre overflow-x-auto">
-                    {DEFAULT_TEMPLATE_SNIPPET}
+                  <pre className="text-xs font-mono p-2 bg-muted rounded whitespace-pre-wrap overflow-x-auto">
+                    {DEFAULT_PROMPT_SNIPPET}
                   </pre>
                   <div className="flex gap-2 mt-1">
                     <button
-                      onClick={() => insertAtCursor(DEFAULT_TEMPLATE_SNIPPET)}
+                      onClick={() => insertAtCursor(DEFAULT_PROMPT_SNIPPET)}
                       className="text-xs px-2 py-1 rounded border border-border hover:bg-muted"
                     >
                       插入到光标
@@ -478,7 +450,7 @@ export function TemplatesManager() {
                   </pre>
                 ) : (
                   <div className="text-xs text-muted-foreground py-6 text-center">
-                    点击「预览」按钮使用示例数据渲染当前模板。
+                    点击「AI 运行预览」按钮，系统将使用示例提交数据调用大模型，生成效果预览。
                   </div>
                 )}
               </div>

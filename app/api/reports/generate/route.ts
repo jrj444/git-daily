@@ -7,9 +7,11 @@ import { withErrors, requireUser } from "@/lib/session";
 import { listCommits } from "@/lib/gitlab";
 import {
   buildContext,
-  renderTemplate,
-  DEFAULT_TEMPLATE_BODY,
+  buildPromptMessages,
+  generateEmptyReport,
+  DEFAULT_PROMPT,
 } from "@/lib/report";
+import { callLLM } from "@/lib/llm";
 
 const Query = z.object({
   date: z
@@ -18,16 +20,25 @@ const Query = z.object({
     .optional(),
   templateId: z.string().optional(),
   projectIds: z.string().optional(), // comma-separated db ids
+  extraNotes: z.string().optional(),
 });
 
-export const GET = withErrors(async (req: Request) => {
+async function handleGenerate(req: Request) {
   const session = await requireUser();
-  const url = new URL(req.url);
-  const q = Query.parse({
-    date: url.searchParams.get("date") || undefined,
-    templateId: url.searchParams.get("templateId") || undefined,
-    projectIds: url.searchParams.get("projectIds") || undefined,
-  });
+  let q: z.infer<typeof Query>;
+
+  if (req.method === "POST") {
+    const json = await req.json().catch(() => ({}));
+    q = Query.parse(json);
+  } else {
+    const url = new URL(req.url);
+    q = Query.parse({
+      date: url.searchParams.get("date") || undefined,
+      templateId: url.searchParams.get("templateId") || undefined,
+      projectIds: url.searchParams.get("projectIds") || undefined,
+      extraNotes: url.searchParams.get("extraNotes") || undefined,
+    });
+  }
 
   const date = q.date || dayjs().format("YYYY-MM-DD");
   const since = dayjs(date).startOf("day").toISOString();
@@ -90,15 +101,15 @@ export const GET = withErrors(async (req: Request) => {
     })
   );
 
-  // Pick template
-  let templateBody = DEFAULT_TEMPLATE_BODY;
+  // Pick prompt template
+  let promptBody = DEFAULT_PROMPT;
   let templateId: string | null = null;
   if (q.templateId) {
     const tpl = await prisma.template.findFirst({
       where: { id: q.templateId, userId: user.id },
     });
     if (tpl) {
-      templateBody = tpl.body;
+      promptBody = tpl.body;
       templateId = tpl.id;
     }
   } else {
@@ -106,7 +117,7 @@ export const GET = withErrors(async (req: Request) => {
       where: { userId: user.id, isDefault: true },
     });
     if (tpl) {
-      templateBody = tpl.body;
+      promptBody = tpl.body;
       templateId = tpl.id;
     }
   }
@@ -122,7 +133,23 @@ export const GET = withErrors(async (req: Request) => {
     { displayName: user.displayName, email: user.gitlabEmail || undefined }
   );
 
-  const content = renderTemplate(templateBody, ctx);
+  let content = "";
+  const hasExtraNotes = Boolean(q.extraNotes?.trim());
+  if (ctx.total === 0 && !hasExtraNotes) {
+    content = generateEmptyReport();
+  } else {
+    try {
+      const messages = buildPromptMessages(promptBody, ctx, q.extraNotes);
+      content = await callLLM(messages);
+    } catch (e: any) {
+      console.error("[generate AI error]", e);
+      return NextResponse.json(
+        { error: `AI 生成失败: ${e?.message || e}` },
+        { status: 502 }
+      );
+    }
+  }
+
   const errors = groups.filter((g) => g.error).map((g) => ({
     project: g.project.name_with_namespace,
     error: g.error!,
@@ -135,4 +162,7 @@ export const GET = withErrors(async (req: Request) => {
     context: ctx,
     errors,
   });
-});
+}
+
+export const GET = withErrors(handleGenerate);
+export const POST = withErrors(handleGenerate);

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { withErrors, requireUser } from "@/lib/session";
-import { DEFAULT_TEMPLATE_BODY } from "@/lib/report";
+import { DEFAULT_PROMPT } from "@/lib/report";
 
 export const GET = withErrors(async () => {
   const user = await requireUser();
@@ -14,8 +14,8 @@ export const GET = withErrors(async () => {
     const t = await prisma.template.create({
       data: {
         userId: user.id,
-        name: "默认模板",
-        body: DEFAULT_TEMPLATE_BODY,
+        name: "标准四段式提示词",
+        body: DEFAULT_PROMPT,
         isDefault: true,
       },
     });

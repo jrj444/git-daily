@@ -1,20 +1,8 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { DEFAULT_PROMPT } from "../lib/report";
 
 const prisma = new PrismaClient();
-
-const DEFAULT_TEMPLATE = `# {{date}} 日报
-
-{{#each projects}}
-## {{name}}
-{{#each commits}}
-- {{message}}
-{{/each}}
-
-{{/each}}
-{{#unless projects.length}}
-（今日无提交记录）
-{{/unless}}`;
 
 async function main() {
   const username = process.env.ADMIN_USERNAME || "admin";
@@ -34,7 +22,7 @@ async function main() {
     },
   });
 
-  // give admin a default template if none
+  // give admin a default prompt template if none
   const existing = await prisma.template.findFirst({
     where: { userId: admin.id, isDefault: true },
   });
@@ -42,8 +30,8 @@ async function main() {
     await prisma.template.create({
       data: {
         userId: admin.id,
-        name: "默认模板",
-        body: DEFAULT_TEMPLATE,
+        name: "标准四段式提示词",
+        body: DEFAULT_PROMPT,
         isDefault: true,
       },
     });
