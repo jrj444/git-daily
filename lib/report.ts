@@ -20,9 +20,27 @@ export type ProjectGroup = {
   commits: CleanCommit[];
 };
 
+export type RepositoryCommits = {
+  repoId?: string;
+  repoName: string;
+  repoAlias?: string | null;
+  webUrl?: string;
+  commits: CleanCommit[];
+};
+
+export type BusinessProjectGroup = {
+  projectId?: string;
+  projectName: string;
+  description?: string | null;
+  repositories: RepositoryCommits[];
+  projectNotes: string[];
+};
+
 export type ReportContext = {
   date: string;
   projects: ProjectGroup[];
+  businessProjects?: BusinessProjectGroup[];
+  generalNotes?: string[];
   total: number;
   user: { displayName: string; email?: string };
 };
@@ -145,36 +163,112 @@ export function renderTemplate(body: string, ctx: ReportContext): string {
   }
 }
 
-export const DEFAULT_PROMPT = `你是一名前端/全栈开发工程师的贴心助手。请根据今日提供的 Git 提交记录及日常其他工作事项（如会议、文档输出、项目管理、跨组协同等），整理并生成一份专业、规范、简洁的企业工作日报。
+export const DEFAULT_PROMPT = `你是一名前端/全栈开发工程师的贴心助手。请根据今日提供的各业务项目（可能包含多个关联代码仓库的提交记录）以及日常工作事项（如会议、文档输出、方案设计、跨组协同等），整理并生成一份专业、规范、简洁的企业工作日报。
 
 输出必须严格遵循以下四段式结构，标题与格式保持一致，禁止添加额外的大标题、一二三四序号或问候语：
 
 今日计划完成工作:
-1. <项目名/事项> - <高阶概括，如迭代优化、需求开发、方案设计>
+1. <业务项目名/事项> - <高阶概括，如需求开发、架构优化、联调测试、方案设计>
 
 今日实际完成工作:
-<项目名 / 综合事务>
-<按项目或事务陈列专业工作要点，每条不超过35字，纯文本换行展示，不带无意义的提交hash/前缀，条目精炼客观，不要加“- ”或数字编号>
+<业务项目名 / 综合事务>
+<按业务项目归纳提炼专业工作要点，整合同一项目下多个子代码仓与日常工作事项，每条不超过35字，纯文本换行展示，不带无意义的提交hash/前缀，条目精炼客观，不要加“- ”或数字编号>
 
 未完成工作及原因:
 无
 
 明日工作计划:
-1. <项目名/事项> - <后续推进任务，如优化迭代、联调测试、方案跟进>
+1. <业务项目名/事项> - <后续推进任务，如优化迭代、联调测试、方案跟进>
 
 具体要求：
-1. 充分整合 Git 提交与日常非代码工作事项，严禁凭空捏造未提到的项目和工作。
-2. 若补充事项中提及了具体项目（如“党建产品接口文档”），请智能归纳至对应项目的完成项中；若是通用事务（如“日常例会”、“运维排障”），可归入对应项目或“综合事务/日常管理”。
-3. “今日实际完成工作”中：语言精炼专业，每个项目或事务下列出具体要点，纯净换行，不要带“- ”或数字编号。
+1. 充分整合各业务项目下的代码提交与日常工作项，同一业务项目下的多个代码仓库提交请合并提炼，严禁凭空捏造未提到的项目和工作。
+2. 若工作项标记了特定项目（如 [平云商城]），务必归纳至对应业务项目；通用事项（如部门周会、运维巡检）归入“综合事务”。
+3. “今日实际完成工作”中：语言精炼专业，每个业务项目或事务下列出具体要点，纯净换行，不要带“- ”或数字编号。
 4. “未完成工作及原因”：默认写“无”。
 5. 仅输出最终纯文本，禁止附带任何问候语、开场白、代码块反引号（\`\`\`）或解释说明。`;
 
+/**
+ * Parses user notes and tags each item to either a matching project name or general notes.
+ */
+export function parseProjectNotes(
+  extraNotes: string | undefined,
+  projectNames: string[]
+): {
+  projectNotesMap: Record<string, string[]>;
+  generalNotes: string[];
+} {
+  const projectNotesMap: Record<string, string[]> = {};
+  const generalNotes: string[] = [];
+
+  for (const name of projectNames) {
+    projectNotesMap[name] = [];
+  }
+
+  if (!extraNotes || !extraNotes.trim()) {
+    return { projectNotesMap, generalNotes };
+  }
+
+  const lines = extraNotes
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  for (const line of lines) {
+    // Strip leading dash, bullet, or list number
+    const cleanLine = line.replace(/^[-*•\d.]+\s*/, "").trim();
+    if (!cleanLine) continue;
+
+    // Check if line starts with [ProjectName] or 【ProjectName】
+    const tagMatch = cleanLine.match(/^[\[【]([^\]】]+)[\]】]\s*(.*)$/);
+    if (tagMatch) {
+      const tag = tagMatch[1].trim();
+      const content = tagMatch[2].trim() || cleanLine;
+
+      const matched = projectNames.find(
+        (p) =>
+          p.toLowerCase() === tag.toLowerCase() ||
+          p.toLowerCase().includes(tag.toLowerCase()) ||
+          tag.toLowerCase().includes(p.toLowerCase())
+      );
+
+      if (matched && projectNotesMap[matched]) {
+        projectNotesMap[matched].push(content);
+        continue;
+      }
+    }
+
+    // Check if line mentions any project name directly
+    let matchedName: string | null = null;
+    for (const name of projectNames) {
+      if (cleanLine.includes(name)) {
+        matchedName = name;
+        break;
+      }
+    }
+
+    if (matchedName && projectNotesMap[matchedName]) {
+      projectNotesMap[matchedName].push(cleanLine);
+    } else {
+      generalNotes.push(cleanLine);
+    }
+  }
+
+  return { projectNotesMap, generalNotes };
+}
+
+function isBusinessProject(
+  p: ProjectGroup | BusinessProjectGroup
+): p is BusinessProjectGroup {
+  return "repositories" in p && Array.isArray((p as any).repositories);
+}
+
 /** Formats project groups, commits and extra non-code notes into clean structured text for LLM consumption. */
 export function formatCommitsForPrompt(
-  projects: ProjectGroup[],
+  projects: (ProjectGroup | BusinessProjectGroup)[],
   date: string,
   user: { displayName: string },
-  extraNotes?: string
+  extraNotes?: string,
+  generalNotes?: string[]
 ): string {
   const lines: string[] = [
     `日期：${date}`,
@@ -182,22 +276,68 @@ export function formatCommitsForPrompt(
   ];
 
   if (projects.length > 0) {
-    lines.push(`\n今日 Git 提交记录：`);
-    for (const p of projects) {
-      lines.push(`\n【${p.name}】`);
-      for (const c of p.commits) {
-        const typePrefix = c.type ? `[${c.type}] ` : "";
-        lines.push(`- ${typePrefix}${c.title}`);
+    const hasAnyBusiness = projects.some(isBusinessProject);
+
+    if (hasAnyBusiness) {
+      lines.push(`\n今日各业务项目工作进展：`);
+      for (const item of projects) {
+        if (isBusinessProject(item)) {
+          lines.push(`\n【项目：${item.projectName}】`);
+          const hasCommits = item.repositories.some((r) => r.commits.length > 0);
+          if (hasCommits) {
+            lines.push(`代码提交记录：`);
+            for (const r of item.repositories) {
+              const rLabel = r.repoAlias
+                ? `${r.repoAlias} (${r.repoName})`
+                : r.repoName;
+              for (const c of r.commits) {
+                const typePrefix = c.type ? `[${c.type}] ` : "";
+                lines.push(`- [${rLabel}] ${typePrefix}${c.title}`);
+              }
+            }
+          }
+          if (item.projectNotes && item.projectNotes.length > 0) {
+            lines.push(`日常非代码事项：`);
+            for (const note of item.projectNotes) {
+              lines.push(`- ${note}`);
+            }
+          }
+          if (!hasCommits && (!item.projectNotes || item.projectNotes.length === 0)) {
+            lines.push(`（今日暂无代码提交与待办项）`);
+          }
+        } else {
+          lines.push(`\n【${item.name}】`);
+          for (const c of item.commits) {
+            const typePrefix = c.type ? `[${c.type}] ` : "";
+            lines.push(`- ${typePrefix}${c.title}`);
+          }
+        }
+      }
+    } else {
+      lines.push(`\n今日 Git 提交记录：`);
+      for (const p of projects as ProjectGroup[]) {
+        lines.push(`\n【${p.name}】`);
+        for (const c of p.commits) {
+          const typePrefix = c.type ? `[${c.type}] ` : "";
+          lines.push(`- ${typePrefix}${c.title}`);
+        }
       }
     }
   } else {
-    lines.push(`\n今日 Git 提交记录：（无代码提交）`);
+    lines.push(`\n今日工作记录：（无代码提交）`);
   }
 
-  const cleanNotes = extraNotes?.trim();
-  if (cleanNotes) {
-    lines.push(`\n今日其他日常工作（会议/文档/项目管理/协同等）：`);
-    lines.push(cleanNotes);
+  if (generalNotes && generalNotes.length > 0) {
+    lines.push(`\n【综合事务 / 跨项目日常】：`);
+    for (const note of generalNotes) {
+      lines.push(`- ${note}`);
+    }
+  } else {
+    const cleanNotes = extraNotes?.trim();
+    if (cleanNotes) {
+      lines.push(`\n今日其他日常工作（会议/文档/项目管理/协同等）：`);
+      lines.push(cleanNotes);
+    }
   }
 
   return lines.join("\n");
@@ -209,11 +349,17 @@ export function buildPromptMessages(
   ctx: ReportContext,
   extraNotes?: string
 ): { role: "system" | "user"; content: string }[] {
+  const projectsToFormat =
+    ctx.businessProjects && ctx.businessProjects.length > 0
+      ? ctx.businessProjects
+      : ctx.projects;
+
   const commitsText = formatCommitsForPrompt(
-    ctx.projects,
+    projectsToFormat,
     ctx.date,
     ctx.user,
-    extraNotes
+    extraNotes,
+    ctx.generalNotes
   );
 
   let template = promptTemplate?.trim() || DEFAULT_PROMPT;

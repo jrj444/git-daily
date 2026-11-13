@@ -49,7 +49,7 @@ export const POST = withErrors(async (req: Request) => {
     const projects = await listProjects({ baseUrl: body.baseUrl, token });
     await prisma.$transaction(
       projects.slice(0, 200).map((p) =>
-        prisma.project.upsert({
+        prisma.repository.upsert({
           where: {
             userId_gitlabProjectId: {
               userId: user.id,

@@ -19,12 +19,21 @@ const QUICK_TAGS = [
 ];
 
 type Template = { id: string; name: string; isDefault: boolean };
-type Project = {
+
+type Repository = {
   id: string;
   nameWithNamespace: string;
   alias?: string | null;
   enabled: boolean;
   defaultBranch: string | null;
+};
+
+type BusinessProject = {
+  id: string;
+  name: string;
+  description: string | null;
+  enabled: boolean;
+  repositories?: Repository[];
 };
 
 export function ReportEditor() {
@@ -33,7 +42,7 @@ export function ReportEditor() {
   const [extraNotes, setExtraNotes] = useState<string>("");
   const [templates, setTemplates] = useState<Template[]>([]);
   const [templateId, setTemplateId] = useState<string>("");
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [projects, setProjects] = useState<BusinessProject[]>([]);
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -58,16 +67,17 @@ export function ReportEditor() {
   const loadConfig = useCallback(async () => {
     const [tplRes, projRes] = await Promise.all([
       fetch("/api/templates").then((r) => r.json()),
-      fetch("/api/gitlab/projects").then((r) => r.json()),
+      fetch("/api/projects").then((r) => r.json()),
     ]);
     setTemplates(tplRes.templates || []);
     const def = (tplRes.templates || []).find((t: Template) => t.isDefault);
     if (def) setTemplateId(def.id);
-    setProjects(projRes.projects || []);
+    const loadedProjects: BusinessProject[] = projRes.projects || [];
+    setProjects(loadedProjects);
     setSelectedProjects(
-      (projRes.projects || [])
-        .filter((p: Project) => p.enabled)
-        .map((p: Project) => p.id)
+      loadedProjects
+        .filter((p: BusinessProject) => p.enabled)
+        .map((p: BusinessProject) => p.id)
     );
   }, []);
 
@@ -205,7 +215,7 @@ export function ReportEditor() {
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="border border-border rounded px-2 py-1 text-sm w-full"
+              className="border border-border rounded px-2 py-1 text-sm w-full bg-background"
             />
           </div>
           <div className="min-w-0 flex-1 sm:flex-none">
@@ -213,7 +223,7 @@ export function ReportEditor() {
             <select
               value={templateId}
               onChange={(e) => setTemplateId(e.target.value)}
-              className="border border-border rounded px-2 py-1 text-sm w-full sm:min-w-[140px]"
+              className="border border-border rounded px-2 py-1 text-sm w-full sm:min-w-[140px] bg-background"
             >
               {templates.map((t) => (
                 <option key={t.id} value={t.id}>
@@ -256,29 +266,48 @@ export function ReportEditor() {
 
       {enabledProjects.length > 0 && (
         <div className="bg-card border border-border rounded-lg p-3">
-          <div className="text-xs text-muted-foreground mb-2">
-            参与生成的项目（共 {enabledProjects.length} 个，
-            <a className="text-primary underline" href="/settings">
-              在设置中开启更多
-            </a>
-            ）
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-xs text-muted-foreground">
+              参与生成的业务项目（共 {enabledProjects.length} 个，
+              <a className="text-primary underline ml-1 hover:opacity-80" href="/projects">
+                在项目管理中配置
+              </a>
+              ）
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              已选 {selectedProjects.length} / {enabledProjects.length} 个
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            {enabledProjects.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => toggleProject(p.id)}
-                className={cn(
-                  "px-2 py-1 text-xs rounded border",
-                  selectedProjects.includes(p.id)
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border text-muted-foreground hover:bg-muted"
-                )}
-              >
-                {p.alias || p.nameWithNamespace}
-                {p.defaultBranch ? ` · ${p.defaultBranch}` : ""}
-              </button>
-            ))}
+            {enabledProjects.map((p) => {
+              const repoCount = p.repositories?.filter((r) => r.enabled).length || 0;
+              const isSelected = selectedProjects.includes(p.id);
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => toggleProject(p.id)}
+                  className={cn(
+                    "px-2.5 py-1 text-xs rounded-lg border transition font-medium flex items-center gap-1.5",
+                    isSelected
+                      ? "border-primary bg-primary/10 text-primary shadow-xs"
+                      : "border-border text-muted-foreground hover:bg-muted"
+                  )}
+                >
+                  <span>{p.name}</span>
+                  <span
+                    className={cn(
+                      "text-[10px] px-1.5 py-0.2 rounded-full",
+                      isSelected
+                        ? "bg-primary/20 text-primary"
+                        : "bg-muted text-muted-foreground"
+                    )}
+                  >
+                    {repoCount}仓
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
@@ -288,7 +317,7 @@ export function ReportEditor() {
           <div className="flex items-center gap-2">
             <span className="text-xs sm:text-sm font-medium">📝 今日日常事项（非代码工作 / 会议 / 文档 / 协同）</span>
             <span className="text-xs text-muted-foreground hidden sm:inline">
-              白天随手记录，AI 生成时自动融合
+              白天随手记录，AI 生成时自动按项目聚合
             </span>
           </div>
           {extraNotes && (
@@ -303,13 +332,25 @@ export function ReportEditor() {
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs text-muted-foreground mr-1">快捷添加:</span>
+          <span className="text-xs text-muted-foreground mr-1">项目标签:</span>
+          {enabledProjects.slice(0, 6).map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => insertTag(p.name)}
+              className="text-xs px-2 py-0.5 rounded-md border border-primary/30 bg-primary/5 hover:bg-primary/15 text-primary transition font-medium"
+            >
+              + [{p.name}]
+            </button>
+          ))}
+
+          <span className="text-xs text-muted-foreground mx-1">常用事项:</span>
           {QUICK_TAGS.map((tag) => (
             <button
               key={tag}
               type="button"
               onClick={() => insertTag(tag)}
-              className="text-xs px-2 py-0.5 rounded border border-border bg-muted/40 hover:bg-muted text-foreground transition"
+              className="text-xs px-2 py-0.5 rounded-md border border-border bg-muted/40 hover:bg-muted text-foreground transition"
             >
               + {tag}
             </button>
@@ -319,7 +360,7 @@ export function ReportEditor() {
         <textarea
           value={extraNotes}
           onChange={(e) => handleNotesChange(e.target.value)}
-          placeholder="在此随手记录今日的会议、方案输出、文档编写、跨部门沟通或运维支持等（一行一条）&#10;点击「AI 生成日报」时，大模型会自动与 Git 提交记录整合归纳…"
+          placeholder="在此随手记录今日的会议、需求评审、架构方案、文档编写、跨部门沟通或运维排障等（一行一条）&#10;支持使用标签如 [平云商城] 参加 2.0 评审，AI 会自动按业务项目聚合呈现…"
           rows={3}
           className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background leading-relaxed resize-y focus:outline-none focus:ring-1 focus:ring-primary"
         />

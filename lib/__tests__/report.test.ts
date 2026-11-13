@@ -10,6 +10,8 @@ import {
   formatCommitsForPrompt,
   buildPromptMessages,
   generateEmptyReport,
+  parseProjectNotes,
+  type BusinessProjectGroup,
 } from "../report";
 import type { GitLabCommit } from "../gitlab";
 import type { CleanCommit, GroupedSource } from "../report";
@@ -313,5 +315,92 @@ describe("AI Prompt generation helpers", () => {
     expect(rep).toContain("今日实际完成工作:\n（今日无提交记录）");
     expect(rep).toContain("未完成工作及原因:\n无");
     expect(rep).toContain("明日工作计划:");
+  });
+
+  describe("parseProjectNotes", () => {
+    it("correctly routes notes with brackets and general notes", () => {
+      const extraNotes = `
+        - [平云商城] 参加 2.0 需求评审会议
+        - 【用户中台】输出鉴权改造技术文档
+        - 跨组部门周会与线上排障
+      `;
+      const { projectNotesMap, generalNotes } = parseProjectNotes(extraNotes, [
+        "平云商城",
+        "用户中台",
+      ]);
+
+      expect(projectNotesMap["平云商城"]).toEqual(["参加 2.0 需求评审会议"]);
+      expect(projectNotesMap["用户中台"]).toEqual(["输出鉴权改造技术文档"]);
+      expect(generalNotes).toEqual(["跨组部门周会与线上排障"]);
+    });
+
+    it("handles empty notes", () => {
+      const { projectNotesMap, generalNotes } = parseProjectNotes("", [
+        "平云商城",
+      ]);
+      expect(projectNotesMap["平云商城"]).toEqual([]);
+      expect(generalNotes).toEqual([]);
+    });
+  });
+
+  describe("BusinessProjectGroup formatting", () => {
+    it("formats multiple repositories and project notes under a business project", () => {
+      const businessProjects: BusinessProjectGroup[] = [
+        {
+          projectName: "平云商城",
+          repositories: [
+            {
+              repoName: "server-api",
+              repoAlias: "服务端",
+              commits: [
+                {
+                  id: "1",
+                  short_id: "c1",
+                  title: "增加下单幂等校验",
+                  message: "feat: 增加下单幂等校验",
+                  author_email: "test@example.com",
+                  authored_date: "2026-11-13T10:00:00Z",
+                  web_url: "https://gitlab.example.com/server-api",
+                  type: "feat",
+                },
+              ],
+            },
+            {
+              repoName: "web-portal",
+              repoAlias: "前端门户",
+              commits: [
+                {
+                  id: "2",
+                  short_id: "c2",
+                  title: "优化商品详情轮播",
+                  message: "fix: 优化商品详情轮播",
+                  author_email: "test@example.com",
+                  authored_date: "2026-11-13T11:00:00Z",
+                  web_url: "https://gitlab.example.com/web-portal",
+                  type: "fix",
+                },
+              ],
+            },
+          ],
+          projectNotes: ["参加 2.0 需求评审会议", "输出微服务架构文档"],
+        },
+      ];
+
+      const formatted = formatCommitsForPrompt(
+        businessProjects,
+        "2026-11-13",
+        { displayName: "江锐健" },
+        undefined,
+        ["部门周会"]
+      );
+
+      expect(formatted).toContain("【项目：平云商城】");
+      expect(formatted).toContain("[服务端 (server-api)] [feat] 增加下单幂等校验");
+      expect(formatted).toContain("[前端门户 (web-portal)] [fix] 优化商品详情轮播");
+      expect(formatted).toContain("- 参加 2.0 需求评审会议");
+      expect(formatted).toContain("- 输出微服务架构文档");
+      expect(formatted).toContain("【综合事务 / 跨项目日常】：");
+      expect(formatted).toContain("- 部门周会");
+    });
   });
 });

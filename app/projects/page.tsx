@@ -16,7 +16,7 @@ export default async function ProjectsPage() {
         <div>
           <h1 className="text-xl font-semibold">项目管理</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            管理你的 GitLab 项目列表，启用日报抓取的项目。无需的项目可以删除以保持列表整洁。
+            管理业务项目及关联的代码仓库（一个项目可纳管多个前端、移动端或服务端代码仓），支持日常事项按项目挂载与智能汇报。
           </p>
         </div>
         <ProjectsManager />

@@ -8,39 +8,44 @@ import { listCommits } from "@/lib/gitlab";
 import {
   buildContext,
   buildPromptMessages,
-  generateEmptyReport,
   DEFAULT_PROMPT,
+  generateEmptyReport,
+  filterCommits,
+  dedupe,
+  toCleanCommits,
+  parseProjectNotes,
+  type BusinessProjectGroup,
+  type RepositoryCommits,
+  type ProjectGroup,
 } from "@/lib/report";
 import { callLLM } from "@/lib/llm";
 
-const Query = z.object({
-  date: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "expected YYYY-MM-DD")
-    .optional(),
+const QuerySchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   templateId: z.string().optional(),
-  projectIds: z.string().optional(), // comma-separated db ids
+  projectIds: z.string().optional(),
   extraNotes: z.string().optional(),
 });
 
 async function handleGenerate(req: Request) {
   const session = await requireUser();
-  let q: z.infer<typeof Query>;
 
+  let rawParams: Record<string, any> = {};
   if (req.method === "POST") {
-    const json = await req.json().catch(() => ({}));
-    q = Query.parse(json);
+    try {
+      rawParams = await req.json();
+    } catch {
+      rawParams = {};
+    }
   } else {
     const url = new URL(req.url);
-    q = Query.parse({
-      date: url.searchParams.get("date") || undefined,
-      templateId: url.searchParams.get("templateId") || undefined,
-      projectIds: url.searchParams.get("projectIds") || undefined,
-      extraNotes: url.searchParams.get("extraNotes") || undefined,
+    url.searchParams.forEach((val, key) => {
+      rawParams[key] = val;
     });
   }
 
-  const date = q.date || dayjs().format("YYYY-MM-DD");
+  const q = QuerySchema.parse(rawParams);
+  const date = q.date;
   const since = dayjs(date).startOf("day").toISOString();
   const until = dayjs(date).add(1, "day").startOf("day").toISOString();
 
@@ -54,12 +59,32 @@ async function handleGenerate(req: Request) {
   }
 
   const projectFilter = q.projectIds?.split(",").filter(Boolean);
-  const projects = await prisma.project.findMany({
+
+  // Fetch enabled business projects with their enabled repositories
+  const businessProjects = await prisma.project.findMany({
     where: {
       userId: user.id,
       enabled: true,
       ...(projectFilter?.length ? { id: { in: projectFilter } } : {}),
     },
+    include: {
+      repositories: {
+        where: { enabled: true },
+        orderBy: [{ defaultBranch: "asc" }, { nameWithNamespace: "asc" }],
+      },
+    },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
+  });
+
+  // Also fetch standalone unassigned repositories that are enabled
+  const unassignedRepos = await prisma.repository.findMany({
+    where: {
+      userId: user.id,
+      enabled: true,
+      projectId: null,
+      ...(projectFilter?.length ? { id: { in: projectFilter } } : {}),
+    },
+    orderBy: [{ nameWithNamespace: "asc" }],
   });
 
   const token = await resolveGitLabToken(user.id);
@@ -71,35 +96,150 @@ async function handleGenerate(req: Request) {
   }
   const opts = { baseUrl: user.gitlabBaseUrl!, token };
 
-  const groups = await Promise.all(
-    projects.map(async (p) => {
+  // Collect all unique repositories across projects & unassigned pool
+  type RepoWithMeta = {
+    id: string;
+    projectId?: string | null;
+    gitlabProjectId: number;
+    nameWithNamespace: string;
+    alias?: string | null;
+    webUrl?: string | null;
+    defaultBranch?: string | null;
+  };
+
+  const allRepos: RepoWithMeta[] = [];
+  const seenRepoIds = new Set<string>();
+
+  for (const bp of businessProjects) {
+    for (const r of bp.repositories) {
+      if (!seenRepoIds.has(r.id)) {
+        seenRepoIds.add(r.id);
+        allRepos.push(r);
+      }
+    }
+  }
+
+  for (const r of unassignedRepos) {
+    if (!seenRepoIds.has(r.id)) {
+      seenRepoIds.add(r.id);
+      allRepos.push(r);
+    }
+  }
+
+  // Fetch commits for each repository in parallel
+  const repoResults = await Promise.all(
+    allRepos.map(async (r) => {
       try {
         const commits = await listCommits(opts, {
-          projectId: p.gitlabProjectId,
+          projectId: r.gitlabProjectId,
           since,
           until,
-          branch: p.defaultBranch || undefined,
+          branch: r.defaultBranch || undefined,
         });
         return {
-          project: {
-            name_with_namespace: p.alias || p.nameWithNamespace,
-            web_url: p.webUrl || "",
-          },
+          repo: r,
           commits,
           error: null as string | null,
         };
       } catch (e: any) {
         return {
-          project: {
-            name_with_namespace: p.alias || p.nameWithNamespace,
-            web_url: p.webUrl || "",
-          },
+          repo: r,
           commits: [],
           error: e?.message || String(e),
         };
       }
     })
   );
+
+  const filterOpts = {
+    authorEmail: user.gitlabEmail || undefined,
+    noiseRegex: user.noiseRegex,
+    dropMerges: true,
+  };
+
+  // Map of repoId -> CleanCommit[]
+  const repoCommitsMap = new Map<string, ReturnType<typeof dedupe>>();
+  let totalCommits = 0;
+
+  for (const res of repoResults) {
+    const filtered = filterCommits(res.commits, filterOpts);
+    const clean = dedupe(toCleanCommits(filtered));
+    repoCommitsMap.set(res.repo.id, clean);
+    totalCommits += clean.length;
+  }
+
+  // Parse extraNotes by business project names
+  const projectNames = businessProjects.map((bp) => bp.name);
+  const { projectNotesMap, generalNotes } = parseProjectNotes(
+    q.extraNotes,
+    projectNames
+  );
+
+  // Build BusinessProjectGroup list
+  const businessProjectGroups: BusinessProjectGroup[] = [];
+  const legacyProjectGroups: ProjectGroup[] = [];
+
+  for (const bp of businessProjects) {
+    const repoGroupList: RepositoryCommits[] = [];
+    for (const r of bp.repositories) {
+      const cleanCommits = repoCommitsMap.get(r.id) || [];
+      if (cleanCommits.length > 0) {
+        repoGroupList.push({
+          repoId: r.id,
+          repoName: r.nameWithNamespace,
+          repoAlias: r.alias,
+          webUrl: r.webUrl || undefined,
+          commits: cleanCommits,
+        });
+
+        legacyProjectGroups.push({
+          idx: legacyProjectGroups.length + 1,
+          name: r.alias ? `${bp.name} - ${r.alias}` : `${bp.name} - ${r.nameWithNamespace}`,
+          webUrl: r.webUrl || undefined,
+          commits: cleanCommits,
+        });
+      }
+    }
+
+    const notes = projectNotesMap[bp.name] || [];
+    // Include this project if it has commits OR notes
+    if (repoGroupList.length > 0 || notes.length > 0) {
+      businessProjectGroups.push({
+        projectId: bp.id,
+        projectName: bp.name,
+        description: bp.description,
+        repositories: repoGroupList,
+        projectNotes: notes,
+      });
+    }
+  }
+
+  // Standalone unassigned repositories with commits
+  for (const r of unassignedRepos) {
+    const cleanCommits = repoCommitsMap.get(r.id) || [];
+    if (cleanCommits.length > 0) {
+      businessProjectGroups.push({
+        projectName: r.alias || r.nameWithNamespace,
+        repositories: [
+          {
+            repoId: r.id,
+            repoName: r.nameWithNamespace,
+            repoAlias: r.alias,
+            webUrl: r.webUrl || undefined,
+            commits: cleanCommits,
+          },
+        ],
+        projectNotes: [],
+      });
+
+      legacyProjectGroups.push({
+        idx: legacyProjectGroups.length + 1,
+        name: r.alias || r.nameWithNamespace,
+        webUrl: r.webUrl || undefined,
+        commits: cleanCommits,
+      });
+    }
+  }
 
   // Pick prompt template
   let promptBody = DEFAULT_PROMPT;
@@ -122,20 +262,18 @@ async function handleGenerate(req: Request) {
     }
   }
 
-  const ctx = buildContext(
+  const ctx = {
     date,
-    groups,
-    {
-      authorEmail: user.gitlabEmail || undefined,
-      noiseRegex: user.noiseRegex,
-      dropMerges: true,
-    },
-    { displayName: user.displayName, email: user.gitlabEmail || undefined }
-  );
+    projects: legacyProjectGroups,
+    businessProjects: businessProjectGroups,
+    generalNotes,
+    total: totalCommits,
+    user: { displayName: user.displayName, email: user.gitlabEmail || undefined },
+  };
 
   let content = "";
   const hasExtraNotes = Boolean(q.extraNotes?.trim());
-  if (ctx.total === 0 && !hasExtraNotes) {
+  if (totalCommits === 0 && !hasExtraNotes) {
     content = generateEmptyReport();
   } else {
     try {
@@ -150,10 +288,12 @@ async function handleGenerate(req: Request) {
     }
   }
 
-  const errors = groups.filter((g) => g.error).map((g) => ({
-    project: g.project.name_with_namespace,
-    error: g.error!,
-  }));
+  const errors = repoResults
+    .filter((g) => g.error)
+    .map((g) => ({
+      project: g.repo.alias || g.repo.nameWithNamespace,
+      error: g.error!,
+    }));
 
   return NextResponse.json({
     date,

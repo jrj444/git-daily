@@ -49,19 +49,26 @@ export type UserStats = {
   dailyTrend: DailyPoint[];
 };
 
-export function categorize(type: string | undefined): CommitType {
-  if (!type) return "other";
-  const lower = type.toLowerCase();
-  if ((KNOWN_TYPES as readonly string[]).includes(lower))
-    return lower as CommitType;
-  return "other";
+export function emptyBreakdown(): Record<CommitType, number> {
+  return {
+    feat: 0,
+    fix: 0,
+    refactor: 0,
+    docs: 0,
+    style: 0,
+    test: 0,
+    chore: 0,
+    perf: 0,
+    ci: 0,
+    build: 0,
+    other: 0,
+  };
 }
 
-export function emptyBreakdown(): Record<CommitType, number> {
-  const bd: Record<string, number> = {};
-  for (const t of KNOWN_TYPES) bd[t] = 0;
-  bd["other"] = 0;
-  return bd as Record<CommitType, number>;
+function categorize(type?: string): CommitType {
+  if (!type) return "other";
+  const lower = type.toLowerCase() as CommitType;
+  return (KNOWN_TYPES as readonly string[]).includes(lower) ? lower : "other";
 }
 
 export type StatsUser = {
@@ -73,7 +80,8 @@ export type StatsUser = {
 };
 
 /**
- * Compute commit statistics for a user across all their enabled projects.
+ * Compute commit statistics for a user across all their enabled repositories,
+ * grouped at the Business Project level.
  * Returns null when the user has no GitLab credentials configured.
  */
 export async function computeUserStats(
@@ -83,8 +91,9 @@ export async function computeUserStats(
 ): Promise<UserStats | null> {
   if (!user.gitlabBaseUrl || !user.gitlabToken) return null;
 
-  const projects = await prisma.project.findMany({
+  const repositories = await prisma.repository.findMany({
     where: { userId: user.id, enabled: true },
+    include: { project: true },
   });
 
   const token = await resolveGitLabToken(user.id);
@@ -93,17 +102,17 @@ export async function computeUserStats(
 
   const totalBreakdown = emptyBreakdown();
   let total = 0;
-  const byProject: ProjectStat[] = [];
+  const projectMap = new Map<string, ProjectStat>();
   const dailyMap = new Map<string, DailyPoint>();
 
   await Promise.all(
-    projects.map(async (p) => {
+    repositories.map(async (r) => {
       try {
         const commits = await listCommits(opts, {
-          projectId: p.gitlabProjectId,
+          projectId: r.gitlabProjectId,
           since,
           until,
-          branch: p.defaultBranch || undefined,
+          branch: r.defaultBranch || undefined,
         });
 
         const filtered = filterCommits(commits, {
@@ -112,20 +121,34 @@ export async function computeUserStats(
           dropMerges: true,
         });
 
-        const projBreakdown = emptyBreakdown();
-        const projCommits: CommitItem[] = [];
-        let projTotal = 0;
+        const projName = r.project?.name || r.alias || r.nameWithNamespace;
+        let projStat = projectMap.get(projName);
+        if (!projStat) {
+          projStat = {
+            name: projName,
+            total: 0,
+            breakdown: emptyBreakdown(),
+            commits: [],
+          };
+          projectMap.set(projName, projStat);
+        }
 
         for (const c of filtered) {
           const parsed = parseConventional(c.message || c.title || "");
           const cat = categorize(parsed.type);
-          projBreakdown[cat]++;
+          projStat.breakdown[cat]++;
           totalBreakdown[cat]++;
-          projTotal++;
+          projStat.total++;
           total++;
-          projCommits.push({
+
+          const repoLabel = r.alias || r.nameWithNamespace.split("/").pop();
+          const titleWithRepo = r.project
+            ? `[${repoLabel}] ${parsed.subject || c.title || c.message || ""}`
+            : parsed.subject || c.title || c.message || "";
+
+          projStat.commits.push({
             short_id: c.short_id,
-            title: parsed.subject || c.title || c.message || "",
+            title: titleWithRepo,
             type: cat,
             web_url: c.web_url ?? null,
             authored_date: c.authored_date,
@@ -144,25 +167,18 @@ export async function computeUserStats(
           else if (cat === "refactor") dp.refactor++;
           else dp.other++;
         }
-
-        if (projTotal > 0) {
-          projCommits.sort((a, b) =>
-            b.authored_date.localeCompare(a.authored_date)
-          );
-          byProject.push({
-            name: p.alias || p.nameWithNamespace,
-            total: projTotal,
-            breakdown: projBreakdown,
-            commits: projCommits,
-          });
-        }
       } catch {
-        // skip failed projects silently for stats
+        // skip failed repositories silently for stats
       }
     })
   );
 
+  const byProject = [...projectMap.values()].filter((p) => p.total > 0);
+  for (const p of byProject) {
+    p.commits.sort((a, b) => b.authored_date.localeCompare(a.authored_date));
+  }
   byProject.sort((a, b) => b.total - a.total);
+
   const dailyTrend = [...dailyMap.values()].sort((a, b) =>
     a.date.localeCompare(b.date)
   );
